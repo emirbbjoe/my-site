@@ -303,8 +303,12 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   .term-f label { display: none; }
   .term-f { padding-left: 16px; }
 }
+@media (max-width: 600px) {
+  .pill.meta { font-size: 10.5px; letter-spacing: .08em; gap: 8px; padding: 8px 16px; }
+}
 @media (max-width: 420px) {
-  .pill.meta { font-size: 10.5px; letter-spacing: .1em; gap: 8px; padding-inline: 16px; }
+  .pill.meta { font-size: 9.5px; letter-spacing: .05em; gap: 6px; padding: 7px 13px; }
+  .pill.meta .dot { width: 6px; height: 6px; box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .16), 0 0 8px rgba(var(--accent-rgb), .9); }
   .fields > div { padding-inline: 16px; }
 }
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
@@ -330,11 +334,11 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 
     <nav class="socials" id="links" aria-label="Social links"></nav>
 
-    <section class="np" id="np" hidden aria-label="Now playing on Spotify">
+    <section class="np" id="np" hidden aria-label="What I'm listening to on Spotify">
       <div class="np-row">
         <div class="np-art"><img id="npArt" alt="" referrerpolicy="no-referrer"></div>
         <div class="np-meta">
-          <span class="pill sm np-tag"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>now playing</span>
+          <span class="pill sm np-tag"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>i'm listening to</span>
           <a class="np-title" id="npTitle" target="_blank" rel="noopener noreferrer"></a>
           <span class="np-artist" id="npArtist"></span>
         </div>
