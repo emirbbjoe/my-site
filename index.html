@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; connect-src https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="description" content="Emirbbjoe — digital card.">
 <meta name="theme-color" content="#000000">
@@ -145,6 +145,51 @@ button.pill:active { transform: scale(.96); }
 .bubble:active { transform: scale(.92); }
 .bubble.done { color: var(--accent); border-color: rgba(var(--accent-rgb), .6); box-shadow: var(--lift), 0 0 28px -4px rgba(var(--accent-rgb), .7); }
 
+/* now playing */
+.np {
+  width: min(440px, 100%);
+  text-align: left;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px;
+  background: var(--pill);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  border: 1px solid var(--line); border-radius: 30px;
+  box-shadow: var(--lift);
+  animation: pop .5s var(--spring);
+}
+.np[hidden] { display: none; }
+.np-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.np-art {
+  flex: none; width: 72px; height: 72px;
+  border-radius: 20px; overflow: hidden;
+  background: radial-gradient(circle at 30% 25%, #3b3e45, #0c0d10 72%);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, .9);
+}
+.np-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.np-art img:not([src]) { display: none; }
+.np-meta { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.np-tag { color: var(--soft); background: rgba(255, 255, 255, .035); box-shadow: none; }
+.np-title {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--fg); text-decoration: none; font-size: 13.5px; font-weight: 500;
+}
+a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.np-artist { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.np-prog { display: flex; align-items: center; gap: 10px; padding-inline: 4px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.np-prog[hidden] { display: none; }
+.np-prog .bar { flex: 1; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.np-prog .bar i {
+  display: block; height: 100%; width: 0; border-radius: 999px;
+  background: var(--accent); box-shadow: 0 0 12px rgba(var(--accent-rgb), .6);
+  transition: width 1s linear;
+}
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; }
+.eq i { width: 2px; height: 40%; border-radius: 2px; background: var(--accent); animation: eq 1s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: -.4s; }
+.eq i:nth-child(3) { animation-delay: -.7s; }
+@keyframes eq { 50% { height: 100%; } }
+
 /* id card */
 .card {
   position: relative;
@@ -264,7 +309,7 @@ button.pill:active { transform: scale(.96); }
 }
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .dot, .term { animation: none; }
+  .dot, .term, .eq i, .np { animation: none; }
   .card, .bubble, .pill, .x, .fields > div { transition: none; }
 }
 </style>
@@ -284,6 +329,18 @@ button.pill:active { transform: scale(.96); }
     </div>
 
     <nav class="socials" id="links" aria-label="Social links"></nav>
+
+    <section class="np" id="np" hidden aria-label="Now playing on Spotify">
+      <div class="np-row">
+        <div class="np-art"><img id="npArt" alt="" referrerpolicy="no-referrer"></div>
+        <div class="np-meta">
+          <span class="pill sm np-tag"><span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>now playing</span>
+          <a class="np-title" id="npTitle" target="_blank" rel="noopener noreferrer"></a>
+          <span class="np-artist" id="npArtist"></span>
+        </div>
+      </div>
+      <div class="np-prog" id="npProg"><span id="npCur">0:00</span><div class="bar"><i id="npBar"></i></div><span id="npDur">0:00</span></div>
+    </section>
 
     <article class="card" id="card" aria-labelledby="cardh">
       <header class="card-h"><span class="pill sm" id="cardh">id_card.sys</span><span class="pill sm live"><span class="dot" aria-hidden="true"></span>online</span></header>
@@ -318,9 +375,10 @@ button.pill:active { transform: scale(.96); }
   /* ---------- edit this block to change your details ---------- */
   const NAME = 'Emirbbjoe';
   const HANDLE = '0xj03';
-  // Paste your numeric Discord user ID here (Discord > Settings > Advanced > Developer Mode,
-  // then right-click your profile > Copy User ID). Until then, the Discord bubble copies your username.
-  const DISCORD_ID = '';
+  // Your numeric Discord user ID (Discord > Settings > Advanced > Developer Mode, then right-click
+  // your profile > Copy User ID). It switches on the live Spotify card (served by Lanyard).
+  const DISCORD_ID = '437715198837522454';
+  const NP_DEMO = false; // preview only: true shows a sample card
 
   const CFG = {
     name: NAME,
@@ -337,6 +395,7 @@ button.pill:active { transform: scale(.96); }
     ],
     links: [
       { id: 'steam', label: 'steam', icon: 'steam', url: 'https://steamcommunity.com/id/whiphan/' },
+      { id: 'discord', label: 'discord', icon: 'discord', copy: 'whipnaenae', url: /^\d{15,25}$/.test(DISCORD_ID) ? 'https://discord.com/users/' + DISCORD_ID : '' },
       { id: 'instagram', label: 'instagram', icon: 'instagram', url: 'https://www.instagram.com/emrhnbbjoe' },
       { id: 'spotify', label: 'spotify', icon: 'spotify', url: 'https://open.spotify.com/user/31bbwh4tpip7spoophwd2gejpjxa' }
     ],
@@ -403,6 +462,9 @@ button.pill:active { transform: scale(.96); }
     ],
     spotify: [
       ['path', { d: 'M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z', class: 'f' }]
+    ],
+    discord: [
+      ['path', { d: 'M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z', class: 'f' }]
     ],
     link: [
       ['path', { d: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1' }],
@@ -501,6 +563,67 @@ button.pill:active { transform: scale(.96); }
   }
   titleEl.addEventListener('pointerenter', () => scramble(titleEl, TITLE, 700));
   scramble(titleEl, TITLE, 1100);
+
+  /* ---------- now playing (Spotify, via Lanyard) ---------- */
+  const npEl = $('#np'), npArt = $('#npArt'), npTitle = $('#npTitle'), npArtist = $('#npArtist');
+  const npProg = $('#npProg'), npBar = $('#npBar'), npCur = $('#npCur'), npDur = $('#npDur');
+  let np = null, demoSeed = null;
+  function fmtT(ms) {
+    const sec = Math.max(0, Math.round(ms / 1000));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function renderProgress() {
+    if (!np) return;
+    const total = np.end - np.start;
+    const pos = Math.min(total, Math.max(0, Date.now() - np.start));
+    npBar.style.width = (total > 0 ? (pos / total) * 100 : 0) + '%';
+    npCur.textContent = fmtT(pos);
+    npDur.textContent = fmtT(total);
+  }
+  function showNP(d) {
+    if (!d) { npEl.hidden = true; np = null; return; }
+    npTitle.textContent = String(d.song || '').slice(0, 200);
+    npArtist.textContent = String(d.artist || '').replace(/;\s*/g, ', ').slice(0, 200);
+    const art = typeof d.album_art_url === 'string' && d.album_art_url.indexOf('https://i.scdn.co/image/') === 0 ? d.album_art_url : '';
+    if (art) { if (npArt.getAttribute('src') !== art) npArt.src = art; } else npArt.removeAttribute('src');
+    if (/^[A-Za-z0-9]{10,30}$/.test(String(d.track_id || ''))) npTitle.href = 'https://open.spotify.com/track/' + d.track_id;
+    else npTitle.removeAttribute('href');
+    const ts = d.timestamps || {};
+    np = (+ts.end > +ts.start) ? { start: +ts.start, end: +ts.end } : null;
+    npProg.hidden = !np;
+    npEl.hidden = false;
+    renderProgress();
+  }
+  npArt.addEventListener('error', () => npArt.removeAttribute('src'));
+  async function pollNP() {
+    if (document.hidden) return;
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch('https://api.lanyard.rest/v1/users/' + DISCORD_ID, { signal: ctl.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (!r.ok) throw new Error('bad status');
+      const j = await r.json();
+      const data = j && j.success && j.data;
+      showNP(data && data.listening_to_spotify && data.spotify ? data.spotify : null);
+    } catch (e) { /* keep the last state, try again later */ }
+    clearTimeout(to);
+  }
+  if (NP_DEMO) {
+    demoSeed = () => {
+      const st = Date.now() - 83000;
+      showNP({ song: 'Midnight Static', artist: 'Lowlight; Pale Hours', timestamps: { start: st, end: st + 215000 } });
+    };
+    demoSeed();
+  } else if (/^\d{15,25}$/.test(DISCORD_ID)) {
+    pollNP();
+    setInterval(pollNP, 10000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNP(); });
+  }
+  setInterval(() => {
+    if (!np) return;
+    if (Date.now() > np.end + (demoSeed ? 0 : 30000)) { if (demoSeed) demoSeed(); else showNP(null); return; }
+    renderProgress();
+  }, 1000);
 
   /* ---------- cursor glow + card tilt ---------- */
   document.addEventListener('pointermove', (e) => {
