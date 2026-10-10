@@ -373,19 +373,29 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
 /* boot screen */
 #boot {
-  position: fixed; inset: 0; z-index: 100; background: #000;
-  display: flex; align-items: center; padding: 0 8vw;
-  font-size: clamp(.85rem, 2.6vw, 1.1rem); line-height: 1.7;
+  position: fixed; inset: 0; z-index: 100; background: #000; overflow: hidden;
+  display: flex; align-items: flex-start; padding: 11vh 7vw 0;
+  font-size: clamp(.7rem, 2.3vw, .98rem); line-height: 1.6;
+  color: #c9ced6; text-shadow: 0 0 7px rgba(255, 255, 255, .28);
   transition: opacity .55s ease;
-  animation: bootFail .01s 8s forwards; /* safety: never gets stuck */
+  animation: bootFail .01s 12s forwards; /* safety: never gets stuck */
 }
+#boot::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px);
+  animation: bflick .12s steps(2) infinite;
+}
+#boot.flash { filter: invert(1); }
 #boot.out { opacity: 0; pointer-events: none; }
-.bl { min-height: 1.7em; white-space: pre; color: #aeb4bf; }
-.bl:first-child { color: #fff; }
+#bootTxt { width: 100%; }
+.bl { min-height: 1.6em; white-space: pre; overflow: hidden; }
+.bl.b1 { color: #fff; }
+.bl.dim { color: #7d838d; text-shadow: none; }
+.bl.hot { color: #fff; font-weight: 700; letter-spacing: .12em; }
 .bcur { color: #fff; animation: bblink 1s steps(1) infinite; }
 @keyframes bblink { 50% { opacity: 0; } }
+@keyframes bflick { 50% { opacity: .55; } }
 @keyframes bootFail { to { opacity: 0; visibility: hidden; pointer-events: none; } }
-@media (prefers-reduced-motion: reduce) { #boot { display: none; } }
 /* party mode */
 .party { position: fixed; top: 14px; right: 14px; z-index: 15; }
 .party[aria-pressed="true"] { color: #fff; border-color: rgba(var(--accent-rgb), .8); box-shadow: var(--lift), 0 0 26px -2px rgba(var(--accent-rgb), .8); }
@@ -1334,37 +1344,71 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   (function () {
     const bootEl = $('#boot'), box = $('#bootTxt');
     if (!bootEl || !box) return;
-    if (RM) { bootEl.remove(); return; }
-    const lines = ['Initializing...', '› Establishing connection...', '› Welcome, Visitor.', '›', ''];
-    const pause = [380, 700, 480, 260, 0];
-    const nodes = lines.map(() => {
-      const d = document.createElement('div'); d.className = 'bl';
-      const t = document.createTextNode(''); d.appendChild(t); box.appendChild(d);
-      return t;
-    });
     const cur = document.createElement('span'); cur.className = 'bcur'; cur.textContent = '▍';
-    let done = false, li = 0, ci = 0;
+    let done = false;
+    const SPEED = 0.5; // 1 = original pace, lower = faster
+    const sleep = (ms) => new Promise((r) => setTimeout(r, done ? 0 : ms * SPEED));
     function finish() {
       if (done) return; done = true;
       bootEl.classList.add('out');
       document.removeEventListener('keydown', onKey, true);
       setTimeout(() => bootEl.remove(), 700);
-      scramble(titleEl, TITLE, 1000);
+      if (!RM) scramble(titleEl, TITLE, 1000);
     }
     function onKey(e) { e.preventDefault(); e.stopPropagation(); finish(); }
     document.addEventListener('keydown', onKey, true);
     bootEl.addEventListener('pointerdown', finish);
-    function step() {
-      if (done) return;
-      nodes[li].parentNode.appendChild(cur);
-      if (ci < lines[li].length) {
-        nodes[li].nodeValue += lines[li][ci++];
-        setTimeout(step, 20 + Math.random() * 28);
-      } else if (li < lines.length - 1) {
-        const w = pause[li]; li++; ci = 0; setTimeout(step, w);
-      } else setTimeout(finish, 1100);
+    function line(text, cls) {
+      const d = document.createElement('div'); d.className = 'bl' + (cls ? ' ' + cls : '');
+      const t = document.createTextNode(text); d.appendChild(t); box.appendChild(d);
+      while (box.children.length > 22) box.removeChild(box.firstChild);
+      return { d, t };
     }
-    setTimeout(step, 250);
+    async function type(text, cls) {
+      const l = line('', cls);
+      for (const ch of text) {
+        if (done) break;
+        l.d.appendChild(cur); l.t.nodeValue += ch;
+        await sleep(14 + Math.random() * 22);
+      }
+      l.t.nodeValue = text; l.d.appendChild(cur);
+      return l;
+    }
+    const hex = (n) => Array.from({ length: n }, () => '0123456789abcdef'[(Math.random() * 16) | 0]).join('');
+    const LOG = [
+      '[  0.004] mount /dev/identity ... ok',
+      '[  0.031] load canvas pulse audio',
+      '[  0.058] spotify.sync .......... ok',
+      '[  0.090] discord.link .......... ok',
+      '[  0.112] steam.link ............ ok',
+      '[  0.140] seeding entropy pool'
+    ];
+    async function run() {
+      await sleep(250);
+      await type('Initializing...', 'b1'); await sleep(260);
+      for (const l of LOG) { line(l, 'dim'); await sleep(80); }
+      await sleep(220);
+      await type('› Establishing connection...');
+      const bar = line(''); bar.d.appendChild(cur);
+      for (let i = 0; i <= 20; i++) {
+        bar.t.nodeValue = '  [' + '█'.repeat(i) + '░'.repeat(20 - i) + '] ' + String(i * 5).padStart(3) + '%';
+        await sleep(32);
+      }
+      await sleep(150);
+      await type('› Bypassing firewall...'); await sleep(260);
+      line('  ACCESS GRANTED', 'hot');
+      if (!RM) { bootEl.classList.add('flash'); setTimeout(() => bootEl.classList.remove('flash'), 110); }
+      await sleep(420);
+      const hx = line(''); hx.d.appendChild(cur);
+      for (let i = 0; i < 14; i++) { hx.t.nodeValue = '› Decrypting ' + hex(24); await sleep(55); }
+      hx.t.nodeValue = '› Decrypting identity... done'; await sleep(300);
+      await type('› Welcome, Visitor.', 'b1'); await sleep(260);
+      await type('›'); await sleep(220);
+      const last = line(''); last.d.appendChild(cur);
+      await sleep(1000);
+      finish();
+    }
+    run();
   })();
 
   /* ---------- party mode: drop a party.mp3 next to index.html to use your own song; otherwise a built-in beat plays ---------- */
