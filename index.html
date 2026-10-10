@@ -637,7 +637,14 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ice:   { a: [138, 180, 255], b: [176, 132, 255], g: [64, 108, 230], h: [104, 78, 222] },
     amber: { a: [255, 176, 72],  b: [255, 104, 84] },
     rose:  { a: [255, 125, 160], b: [255, 176, 104] },
-    mono:  { a: [225, 228, 234], b: [132, 144, 160], g: [220, 224, 230], h: [125, 130, 140] }
+    mono:  { a: [225, 228, 234], b: [132, 144, 160], g: [220, 224, 230], h: [125, 130, 140] },
+    violet: { a: [178, 132, 255], b: [255, 122, 214] },
+    crimson: { a: [255, 72, 96],  b: [255, 140, 90] },
+    ocean:  { a: [64, 196, 255],  b: [60, 120, 255] },
+    lime:   { a: [186, 255, 72],  b: [64, 230, 150] },
+    sunset: { a: [255, 138, 72],  b: [255, 72, 150] },
+    cyber:  { a: [0, 240, 255],   b: [255, 40, 200] },
+    gold:   { a: [255, 214, 90],  b: [255, 160, 60] }
   };
   const MODES = ['aurora', 'warp', 'flow'];
   let themeName = 'mono';
@@ -1239,6 +1246,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   };
   const ARGS = {
     theme: () => Object.keys(THEMES),
+    themeall: () => Object.keys(THEMES).concat('off'),
     bg: () => MODES,
     cat: () => Object.keys(FILES),
     open: () => CFG.links.map((l) => l.id)
@@ -1330,7 +1338,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     },
     theme(a) {
       if (!a[0]) { add('themes: ' + Object.keys(THEMES).join(', ') + '  (current: ' + themeName + ')'); return; }
-      if (setTheme(a[0].toLowerCase())) add('theme → ' + themeName, 'ok');
+      if (setTheme(a[0].toLowerCase())) { store.set('themeAt', String(Date.now())); add('theme → ' + themeName, 'ok'); }
       else add('unknown theme: ' + a[0], 'err');
     },
     bg(a) {
@@ -1373,6 +1381,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       add('admin commands', 'ok');
       [['gb list', 'show notes with ids'], ['gb rm <id>', 'delete one note'], ['gb clear yes', 'delete ALL notes'],
        ['gb lock / unlock', 'stop / allow new notes'], ['announce <text>', 'banner on top of the site'], ['announce off', 'remove the banner'],
+       ['themeall <name>', 'set the theme for everyone'], ['themeall off', 'stop forcing a theme'],
        ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
         .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
     },
@@ -1405,6 +1414,14 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       const r = await adm('cfg', { announce: raw.toLowerCase() === 'off' ? '' : raw });
       if (r) { applyCfg(r.cfg); add(r.cfg.announce ? 'banner set.' : 'banner removed.', 'ok'); }
     },
+    async themeall(a) {
+      if (!needAdmin()) return;
+      const n = (a[0] || '').toLowerCase();
+      if (!n) { add('usage: themeall <name>  |  themeall off   (' + Object.keys(THEMES).join(', ') + ')', 'err'); return; }
+      if (n !== 'off' && !Object.prototype.hasOwnProperty.call(THEMES, n)) { add('unknown theme: ' + n, 'err'); return; }
+      const r = await adm('cfg', { theme: n === 'off' ? '' : n });
+      if (r) { applyCfg(r.cfg); add(n === 'off' ? 'theme no longer forced.' : 'default theme for everyone → ' + n, 'ok'); }
+    },
     async bio(a, raw) {
       if (!needAdmin()) return;
       if (!raw) { add('usage: bio line one | line two  |  bio reset', 'err'); return; }
@@ -1417,6 +1434,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       if (r) {
         add('announce  ' + (r.cfg.announce || '(none)'));
         add('guestbook ' + (r.cfg.locked ? 'locked' : 'open'));
+        add('theme     ' + (r.cfg.theme || '(not forced)'));
         add('bio       ' + (r.cfg.bio ? r.cfg.bio.join(' | ') : '(default)'));
       }
     },
@@ -1719,6 +1737,11 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     const bio = c && Array.isArray(c.bio) && c.bio.length ? c.bio.filter((x) => typeof x === 'string') : BIO0;
     CFG.bio.splice(0, CFG.bio.length, ...bio);
     gbLocked = !!(c && c.locked); updateGbLock();
+    // owner-set default theme: wins over older personal choices, but a visitor's newer pick wins over it
+    if (c && typeof c.theme === 'string' && Object.prototype.hasOwnProperty.call(THEMES, c.theme) && !party.on) {
+      const mine = parseInt(store.get('themeAt') || '0', 10) || 0;
+      if ((+c.themeAt || 0) > mine && themeName !== c.theme) setTheme(c.theme);
+    }
   }
   if (!NP_DEMO) api('/api/site').then(applyCfg).catch(() => { /* site settings are optional */ });
 
