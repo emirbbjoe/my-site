@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; media-src 'self'; connect-src 'self' https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; media-src 'self'; connect-src 'self' https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
@@ -423,6 +423,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   .card, .bubble, .pill, .x, .fields > div { transition: none; }
 }
 </style>
+<!-- Vercel Web Analytics: counts visits (no cookies). Turn it on in Vercel -> your project -> Analytics. -->
+<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
