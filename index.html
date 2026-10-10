@@ -251,11 +251,15 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 
 .foot {
   width: 100%; max-width: 980px;
-  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px 32px;
   color: var(--muted);
   padding-top: 24px;
 }
+@media (max-width: 800px) {
+  .foot { flex-direction: column; }
+}
 .foot .pill { color: var(--muted); }
+.foot #copy { font-size: 10px; letter-spacing: .1em; line-height: normal; padding-block: 7px; }
 .foot button.pill:hover { color: var(--accent); border-color: rgba(var(--accent-rgb), .5); }
 .foot b { color: var(--accent); font-weight: 400; }
 
@@ -1160,7 +1164,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   const term = $('#term'), out = $('#out'), form = $('#form'), inp = $('#in'), openBtn = $('#openTerm');
   const UH = CFG.handle.toLowerCase();
   // SHA-256 of 'emirbbjoe-salt:' + password. Log in, then type: passwd <new password> to get a new one to paste here.
-  const ADMIN_HASH = '19eb5dc81a0ee8f64562f7b3f92468b435c4e870d3bf1e5f3e8b3c5c4cac95fe';
+  const ADMIN_HASH = '1de3efdd807e6cb7983442e9623918eddd88355b2abb2549c7967a1e80b97711';
   let authed = false, pwMode = false, fails = 0, lockUntil = 0;
   let adminTok = null; // real server session (from /api/admin), memory only
   let PS1 = 'visitor@' + UH + ':~$';
