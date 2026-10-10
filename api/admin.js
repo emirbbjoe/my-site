@@ -46,6 +46,10 @@ module.exports = async (req, res) => {
       if (Array.isArray(b.bio)) cur.bio = b.bio.map((x) => L.clean(x, 140)).filter(Boolean).slice(0, 6);
       if (b.bio === null) cur.bio = null;
       if (typeof b.locked === 'boolean') cur.locked = b.locked;
+      if (typeof b.theme === 'string') {
+        const th = b.theme.toLowerCase();
+        if (th === '' || /^[a-z]{2,12}$/.test(th)) { cur.theme = th; cur.themeAt = Date.now(); }
+      }
       await L.redis(['SET', 'site:cfg', JSON.stringify(cur)]);
       return L.send(res, 200, { ok: true, cfg: cur });
     }
