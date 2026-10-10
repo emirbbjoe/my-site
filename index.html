@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; connect-src https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; connect-src 'self' https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
@@ -139,6 +139,16 @@ button.pill:active { transform: scale(.96); }
   text-decoration: none; font: inherit; cursor: pointer;
   transition: transform .35s var(--spring), color .2s, border-color .2s, box-shadow .2s;
 }
+.dot {
+  position: absolute; top: 1px; right: 1px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #6b7280; border: 2px solid #000;
+  box-sizing: border-box; pointer-events: none;
+}
+.dot[hidden] { display: none; }
+.dot.online { background: #23c55e; box-shadow: 0 0 8px rgba(35,197,94,.8); }
+.dot.idle { background: #f5b301; }
+.dot.dnd { background: #ef4444; }
 .bubble svg {
   width: 21px; height: 21px;
   fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
@@ -306,6 +316,47 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   background: transparent; border: 0; outline: 0; caret-color: var(--accent);
   padding: 6px 4px;
 }
+/* minigame */
+.game {
+  position: fixed; inset: 0; margin: auto; z-index: 30;
+  width: min(460px, calc(100% - 24px)); height: fit-content; max-height: calc(100% - 24px);
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0)), rgba(5, 7, 10, .95);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--line); border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 40px 90px -24px rgba(0, 0, 0, .9), 0 0 60px -20px rgba(var(--accent-rgb), .3);
+  touch-action: none; overscroll-behavior: contain; user-select: none;
+  animation: pop .35s var(--spring);
+}
+.game[hidden] { display: none; }
+.game-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.game-h .pill { background: rgba(255, 255, 255, .035); box-shadow: none; color: var(--soft); }
+.game-h b { font-weight: 500; color: var(--fg); }
+.game-h .x { margin-left: auto; }
+#gCv {
+  display: block; width: 100%; aspect-ratio: 1 / 1;
+  max-width: max(220px, calc(100vh - 250px)); max-width: max(220px, calc(100dvh - 250px));
+  margin-inline: auto;
+  border-radius: 20px; border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .02);
+  touch-action: none; cursor: pointer;
+}
+.dpad { display: none; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); gap: 8px; justify-content: center; }
+@media (hover: none) { .dpad { display: grid; } }
+.pad {
+  display: grid; place-items: center;
+  width: 56px; height: 56px; padding: 0;
+  font: inherit; font-size: 20px; color: var(--soft);
+  background: var(--pill); border: 1px solid var(--line); border-radius: 50%;
+  box-shadow: var(--lift); cursor: pointer; touch-action: none; user-select: none;
+  transition: transform .2s var(--spring), color .15s, border-color .15s;
+}
+.pad:active { transform: scale(.9); color: var(--accent); border-color: rgba(var(--accent-rgb), .6); }
+.pad[data-d="up"] { grid-column: 2; grid-row: 1; }
+.pad[data-d="left"] { grid-column: 1; grid-row: 2; }
+.pad[data-d="down"] { grid-column: 2; grid-row: 2; }
+.pad[data-d="right"] { grid-column: 3; grid-row: 2; }
 @media (max-width: 600px) {
   #in { font-size: 16px; }
   .term-f label { display: none; }
@@ -321,7 +372,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 }
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .dot, .term, .eq i, .np { animation: none; }
+  .dot, .term, .eq i, .np, .game { animation: none; }
   .card, .bubble, .pill, .x, .fields > div { transition: none; }
 }
 </style>
@@ -378,6 +429,22 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     <label for="in" id="ps1"></label>
     <input id="in" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Terminal command">
   </form>
+</div>
+
+<div class="game" id="game" role="dialog" aria-label="Snake" hidden>
+  <div class="game-h">
+    <span class="pill sm"><span class="dot" aria-hidden="true"></span>snake</span>
+    <span class="pill sm">score <b id="gScore">0</b></span>
+    <span class="pill sm">best <b id="gBest">0</b></span>
+    <button class="x" id="gX" type="button" aria-label="Close game">✕</button>
+  </div>
+  <canvas id="gCv" aria-label="Snake game board"></canvas>
+  <div class="dpad" id="dpad">
+    <button class="pad" type="button" data-d="up" aria-label="Up" tabindex="-1">↑</button>
+    <button class="pad" type="button" data-d="left" aria-label="Left" tabindex="-1">←</button>
+    <button class="pad" type="button" data-d="down" aria-label="Down" tabindex="-1">↓</button>
+    <button class="pad" type="button" data-d="right" aria-label="Right" tabindex="-1">→</button>
+  </div>
 </div>
 
 <script>
@@ -443,6 +510,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   let themeName = 'mono';
   let rgb = THEMES.mono.g.join(',');
   let rgb2 = THEMES.mono.h.join(',');
+  let accRgb = THEMES.mono.a.join(',');
   function setTheme(name) {
     if (!Object.prototype.hasOwnProperty.call(THEMES, name)) return false;
     themeName = name;
@@ -451,6 +519,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     rgb2 = (th.h || th.b).join(',');
     root.style.setProperty('--accent', 'rgb(' + acc + ')');
     root.style.setProperty('--accent-rgb', acc);
+    accRgb = acc;
     root.style.setProperty('--g-rgb', rgb);
     store.set('theme', name);
     return true;
@@ -503,6 +572,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   document.title = CFG.name + ' — ' + CFG.handle;
 
   const linksEl = $('#links');
+  const dots = {};
   CFG.links.forEach((l) => {
     const url = safeUrl(l.url);
     let el;
@@ -518,6 +588,11 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     } else return;
     el.className = 'bubble';
     el.appendChild(icon(l.icon));
+    if (l.id === 'steam' || l.id === 'discord') {
+      const d = document.createElement('span');
+      d.className = 'dot'; d.hidden = true; d.setAttribute('aria-hidden', 'true');
+      el.appendChild(d); dots[l.id] = { d, el, label: l.label };
+    }
     linksEl.appendChild(el);
   });
   function copyName(l, el) {
@@ -607,6 +682,28 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     renderProgress();
   }
   npArt.addEventListener('error', () => npArt.removeAttribute('src'));
+  function setDot(id, st) {
+    const o = dots[id]; if (!o) return;
+    const ok = st === 'online' || st === 'idle' || st === 'dnd' || st === 'offline';
+    o.d.hidden = !ok;
+    if (!ok) return;
+    o.d.className = 'dot ' + st;
+    const txt = st === 'dnd' ? 'do not disturb' : st;
+    o.el.setAttribute('aria-label', (o.el.getAttribute('aria-label') || '').replace(/ \u2013 .*$/, '') + ' \u2013 ' + txt);
+  }
+  async function pollSteam() {
+    if (document.hidden || NP_DEMO) return;
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch('/api/steam', { signal: ctl.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (!r.ok) throw new Error('bad status');
+      const j = await r.json();
+      const n = j && typeof j.state === 'number' ? j.state : -1;
+      setDot('steam', n === 0 ? 'offline' : n === 3 || n === 4 ? 'idle' : n > 0 && n < 7 ? 'online' : '');
+    } catch (e) { /* no dot if unreachable */ }
+    clearTimeout(to);
+  }
   async function pollNP() {
     if (document.hidden) return;
     const ctl = new AbortController();
@@ -616,6 +713,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
       if (!r.ok) throw new Error('bad status');
       const j = await r.json();
       const data = j && j.success && j.data;
+      if (data && typeof data.discord_status === 'string') setDot('discord', data.discord_status);
       showNP(data && data.listening_to_spotify && data.spotify ? data.spotify : null);
     } catch (e) { /* keep the last state, try again later */ }
     clearTimeout(to);
@@ -626,10 +724,12 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
       showNP({ song: 'Midnight Static', artist: 'Lowlight; Pale Hours', timestamps: { start: st, end: st + 215000 } });
     };
     demoSeed();
+    setDot('discord', 'online'); setDot('steam', 'idle');
   } else if (/^\d{15,25}$/.test(DISCORD_ID)) {
-    pollNP();
+    pollNP(); pollSteam();
     setInterval(pollNP, 10000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNP(); });
+    setInterval(pollSteam, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollNP(); pollSteam(); } });
   }
   setInterval(() => {
     if (!np) return;
@@ -879,7 +979,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   document.addEventListener('pointercancel', () => { mouse.on = false; });
   root.addEventListener('pointerleave', () => { mouse.on = false; });
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('#term')) return;
+    if (e.target.closest && e.target.closest('#term, #game')) return;
     addPulse(e.clientX, e.clientY);
   });
   $('#bgBtn').addEventListener('click', () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]));
@@ -945,6 +1045,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     ['theme [name]', 'change accent color'],
     ['bg [mode]', 'aurora | warp | flow'],
     ['pulse', 'send a shockwave'],
+    ['play', 'play snake (keys or swipe)'],
     ['glitch', 'scramble the title'],
     ['neofetch', 'system info'],
     ['date / uptime', 'time info'],
@@ -1028,6 +1129,8 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     sudo() { add('visitor is not in the sudoers file. This incident will be reported.', 'err'); },
     rm() { add('rm: permission denied. nice try.', 'err'); },
     hello() { add('hi.', 'ok'); },
+    play() { add('starting snake. arrows / wasd or swipe. esc to quit.', 'ok'); openGame(); },
+    snake() { cmds.play(); },
     exit() { closeTerm(); },
     quit() { closeTerm(); }
   };
@@ -1101,6 +1204,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   });
 
   document.addEventListener('keydown', (e) => {
+    if (game.open) { gameKey(e); return; }
     if (e.key === 'Escape' && !term.hidden) { closeTerm(); return; }
     if (e.key === '`' || e.code === 'Backquote') {
       const tg = e.target;
@@ -1110,6 +1214,187 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
       if (term.hidden) openTerm(); else closeTerm();
     }
   });
+
+  /* ---------- minigame: snake (walls wrap around, only your own tail hurts) ---------- */
+  const gameEl = $('#game'), gCv = $('#gCv'), gctx = gCv.getContext('2d');
+  const gScoreEl = $('#gScore'), gBestEl = $('#gBest');
+  const GN = 20;
+  const game = { open: false };
+  let snake = [], gDir = { x: 1, y: 0 }, gQueue = [], gFood = { x: 0, y: 0 };
+  let gPoints = 0, gBestN = parseInt(store.get('snakeBest') || '0', 10) || 0, gNewBest = false;
+  let gState = 'ready', gAcc = 0, gLast = 0, gRaf = 0, gSize = 0, gDpr = 1;
+
+  function gHud() { gScoreEl.textContent = gPoints; gBestEl.textContent = Math.max(gBestN, gPoints); }
+  function gPlaceFood() {
+    let p;
+    do { p = { x: (Math.random() * GN) | 0, y: (Math.random() * GN) | 0 }; }
+    while (snake.some((s) => s.x === p.x && s.y === p.y));
+    gFood = p;
+  }
+  function gReset() {
+    snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+    gDir = { x: 1, y: 0 }; gQueue = []; gPoints = 0; gAcc = 0; gNewBest = false; gState = 'ready';
+    gPlaceFood(); gHud();
+  }
+  function gStart() { if (gState === 'ready' || gState === 'paused') gState = 'playing'; }
+  function gRestart() { gReset(); gState = 'playing'; }
+  function gOver() {
+    gState = 'over';
+    if (gPoints > gBestN) { gBestN = gPoints; gNewBest = true; store.set('snakeBest', String(gBestN)); }
+    gHud();
+  }
+  function gSetDir(dx, dy) {
+    if (gState === 'over') return;
+    const last = gQueue.length ? gQueue[gQueue.length - 1] : gDir;
+    if (dx === -last.x && dy === -last.y) return;
+    if (!(dx === last.x && dy === last.y) && gQueue.length < 2) gQueue.push({ x: dx, y: dy });
+    gStart();
+  }
+  function gStep() {
+    if (gQueue.length) gDir = gQueue.shift();
+    const hx = (snake[0].x + gDir.x + GN) % GN, hy = (snake[0].y + gDir.y + GN) % GN;
+    const eating = hx === gFood.x && hy === gFood.y;
+    const body = eating ? snake : snake.slice(0, -1);
+    if (body.some((s) => s.x === hx && s.y === hy)) { gOver(); return; }
+    snake.unshift({ x: hx, y: hy });
+    if (eating) {
+      gPoints++;
+      if (snake.length >= GN * GN) { gOver(); return; }
+      gPlaceFood(); gHud();
+    } else snake.pop();
+  }
+
+  function gRR(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+  function gMsg(title, sub, sub2) {
+    const g = gctx;
+    g.fillStyle = 'rgba(3,4,6,.74)'; g.fillRect(0, 0, gSize, gSize);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#fff';
+    g.font = '500 ' + Math.round(gSize * 0.075) + 'px "Martian Mono", ui-monospace, monospace';
+    g.fillText(title, gSize / 2, gSize * 0.42);
+    g.fillStyle = 'rgba(255,255,255,.62)';
+    g.font = '400 ' + Math.round(gSize * 0.036) + 'px "Martian Mono", ui-monospace, monospace';
+    g.fillText(sub, gSize / 2, gSize * 0.52);
+    if (sub2) g.fillText(sub2, gSize / 2, gSize * 0.58);
+  }
+  function gDraw(now) {
+    const g = gctx, c = gSize / GN;
+    g.setTransform(gDpr, 0, 0, gDpr, 0, 0);
+    g.clearRect(0, 0, gSize, gSize);
+    g.fillStyle = 'rgba(255,255,255,.07)';
+    for (let y = 0; y < GN; y++) for (let x = 0; x < GN; x++) g.fillRect(x * c + c / 2 - 1, y * c + c / 2 - 1, 2, 2);
+    const pulse = 0.5 + 0.5 * Math.sin(now / 220);
+    const fx = gFood.x * c + c / 2, fy = gFood.y * c + c / 2;
+    g.fillStyle = 'rgba(' + accRgb + ',' + (0.14 + 0.12 * pulse).toFixed(3) + ')';
+    g.beginPath(); g.arc(fx, fy, c * (0.62 + 0.1 * pulse), 0, 6.2832); g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(fx, fy, c * 0.26, 0, 6.2832); g.fill();
+    const L = snake.length;
+    for (let i = L - 1; i >= 0; i--) {
+      const sg = snake[i], k = 1 - i / L;
+      g.fillStyle = i === 0 ? '#fff' : 'rgba(' + accRgb + ',' + (0.28 + 0.62 * k).toFixed(3) + ')';
+      gRR(g, sg.x * c + 1.5, sg.y * c + 1.5, c - 3, c - 3, c * 0.3);
+      g.fill();
+    }
+    if (gState === 'ready') gMsg('SNAKE', 'swipe or use arrow keys', 'to start');
+    else if (gState === 'paused') gMsg('PAUSED', 'space or tap to resume');
+    else if (gState === 'over') gMsg(gNewBest ? 'NEW BEST' : 'GAME OVER', 'score ' + gPoints + ' · best ' + gBestN, 'tap or press space');
+  }
+  function gLoop(now) {
+    if (!game.open) return;
+    const dt = Math.min(100, now - gLast);
+    gLast = now;
+    if (gState === 'playing') {
+      gAcc += dt;
+      const stepMs = Math.max(62, 125 - gPoints * 2);
+      while (gAcc >= stepMs && gState === 'playing') { gAcc -= stepMs; gStep(); }
+    }
+    gDraw(now);
+    gRaf = requestAnimationFrame(gLoop);
+  }
+  function gSizeCanvas() {
+    gSize = gCv.clientWidth || 360;
+    gDpr = Math.min(devicePixelRatio || 1, 2);
+    gCv.width = gCv.height = Math.round(gSize * gDpr);
+  }
+  function openGame() {
+    if (game.open) return;
+    game.open = true;
+    inp.blur();
+    gameEl.hidden = false;
+    gSizeCanvas(); gReset();
+    gLast = performance.now();
+    gRaf = requestAnimationFrame(gLoop);
+  }
+  function closeGame() {
+    if (!game.open) return;
+    game.open = false;
+    cancelAnimationFrame(gRaf);
+    gameEl.hidden = true;
+    if (!term.hidden) inp.focus();
+  }
+  const G_KEYS = {
+    ArrowUp: [0, -1], w: [0, -1], W: [0, -1],
+    ArrowDown: [0, 1], s: [0, 1], S: [0, 1],
+    ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0],
+    ArrowRight: [1, 0], d: [1, 0], D: [1, 0]
+  };
+  function gameKey(e) {
+    const k = e.key;
+    if (k === 'Escape') { e.preventDefault(); closeGame(); return; }
+    if (Object.prototype.hasOwnProperty.call(G_KEYS, k)) {
+      e.preventDefault();
+      gSetDir(G_KEYS[k][0], G_KEYS[k][1]);
+      return;
+    }
+    if (k === ' ' || k === 'Spacebar' || k === 'p' || k === 'P') {
+      e.preventDefault();
+      if (gState === 'over') gRestart();
+      else if (gState === 'playing') gState = 'paused';
+      else gStart();
+      return;
+    }
+    if ((k === 'r' || k === 'R' || k === 'Enter') && gState === 'over') { e.preventDefault(); gRestart(); }
+  }
+  let gSwipe = null;
+  gCv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (gState === 'over') { gRestart(); return; }
+    gStart();
+    gSwipe = { x: e.clientX, y: e.clientY };
+    try { gCv.setPointerCapture(e.pointerId); } catch (err) { /* not supported */ }
+  });
+  gCv.addEventListener('pointermove', (e) => {
+    if (!gSwipe) return;
+    const dx = e.clientX - gSwipe.x, dy = e.clientY - gSwipe.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+    if (Math.abs(dx) > Math.abs(dy)) gSetDir(dx > 0 ? 1 : -1, 0);
+    else gSetDir(0, dy > 0 ? 1 : -1);
+    gSwipe = { x: e.clientX, y: e.clientY };
+  });
+  const gEndSwipe = () => { gSwipe = null; };
+  gCv.addEventListener('pointerup', gEndSwipe);
+  gCv.addEventListener('pointercancel', gEndSwipe);
+  const G_PAD = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+  $('#dpad').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest && e.target.closest('button[data-d]');
+    if (!b || !Object.prototype.hasOwnProperty.call(G_PAD, b.dataset.d)) return;
+    e.preventDefault();
+    if (gState === 'over') { gRestart(); return; }
+    gSetDir(G_PAD[b.dataset.d][0], G_PAD[b.dataset.d][1]);
+  });
+  $('#gX').addEventListener('click', closeGame);
+  addEventListener('resize', () => { if (game.open) gSizeCanvas(); });
+  document.addEventListener('visibilitychange', () => { if (game.open && document.hidden && gState === 'playing') gState = 'paused'; });
+  gHud();
 
   /* drag the terminal by its title bar */
   const termH = $('#termH');
