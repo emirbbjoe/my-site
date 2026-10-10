@@ -991,8 +991,36 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 
   /* ---------- terminal ---------- */
   const term = $('#term'), out = $('#out'), form = $('#form'), inp = $('#in'), openBtn = $('#openTerm');
-  const PS1 = 'visitor@' + CFG.handle.toLowerCase() + ':~$';
+  const UH = CFG.handle.toLowerCase();
+  // SHA-256 of 'emirbbjoe-salt:' + password. Log in, then type: passwd <new password> to get a new one to paste here.
+  const ADMIN_HASH = '67dad29bb3e2f75eabe5f3fdc20015d3ee13b45d5b6d1bfb26b0f407abaa2401';
+  let authed = false, pwMode = false, fails = 0, lockUntil = 0;
+  let PS1 = 'visitor@' + UH + ':~$';
   $('#ps1').textContent = PS1;
+  function setUser(root) {
+    authed = root;
+    PS1 = (root ? 'root@' : 'visitor@') + UH + (root ? ':~#' : ':~$');
+    $('#ps1').textContent = PS1;
+  }
+  async function sha(t) {
+    if (!(window.crypto && crypto.subtle)) throw new Error('no crypto');
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('emirbbjoe-salt:' + t));
+    return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, '0')).join('');
+  }
+  function endPw() { pwMode = false; inp.type = 'text'; inp.value = ''; $('#ps1').textContent = PS1; }
+  async function tryLogin(pw) {
+    endPw();
+    if (Date.now() < lockUntil) { add('too many attempts. wait ' + Math.ceil((lockUntil - Date.now()) / 1000) + 's.', 'err'); return; }
+    let ok = false;
+    try { ok = (await sha(pw)) === ADMIN_HASH; }
+    catch (e) { add('login needs https (secure context).', 'err'); return; }
+    if (ok) { fails = 0; setUser(true); add('welcome back, ' + CFG.name + '. root access granted.', 'ok'); add("try 'sudo help'.", 'dim'); }
+    else {
+      fails++;
+      if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; }
+      setTimeout(() => add('login incorrect.', 'err'), 600);
+    }
+  }
   const history = [];
   let hIdx = 0, booted = false;
   const t0 = Date.now();
@@ -1044,6 +1072,8 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     ['ls / cat <file>', 'browse files'],
     ['theme [name]', 'change accent color'],
     ['bg [mode]', 'aurora | warp | flow'],
+    ['login / logout', 'become root'],
+    ['sudo <cmd>', 'root only · sudo help'],
     ['pulse', 'send a shockwave'],
     ['play', 'play snake (keys or swipe)'],
     ['glitch', 'scramble the title'],
@@ -1126,7 +1156,46 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     clear() { out.textContent = ''; },
     pwd() { add('/home/visitor'); },
     cd() { add('cd: this is a one-room site.', 'dim'); },
-    sudo() { add('visitor is not in the sudoers file. This incident will be reported.', 'err'); },
+    login() {
+      if (authed) { add('already root.', 'dim'); return; }
+      pwMode = true; inp.type = 'password'; inp.value = '';
+      $('#ps1').textContent = 'password:';
+    },
+    logout() { if (!authed) { add('not logged in.', 'dim'); return; } setUser(false); add('logged out.', 'ok'); },
+    passwd(a, raw) {
+      if (!authed) { add('permission denied. login first.', 'err'); return; }
+      if (!raw) { add('usage: passwd <new password>', 'err'); return; }
+      sha(raw).then((h) => {
+        add('paste this as ADMIN_HASH in index.html:', 'ok');
+        add(h, 'dim');
+        add('(edit the page source, then redeploy. nothing changes until you do.)', 'dim');
+      }).catch(() => add('needs https (secure context).', 'err'));
+    },
+    sudo(a) {
+      if (!authed) { add('visitor is not in the sudoers file. try: login', 'err'); return; }
+      const sub = (a[0] || 'help').toLowerCase();
+      if (sub === 'help') {
+        add('root commands', 'ok');
+        [['sudo whoami', 'who am i'], ['sudo status', 'live discord / steam state'], ['sudo panic', 'shockwave storm'],
+         ['sudo reboot', 'restart the shell'], ['sudo rm -rf /', 'do not']].forEach(([k, d]) => add('  ' + k.padEnd(16) + d, 'dim'));
+      } else if (sub === 'whoami') add('root');
+      else if (sub === 'status') {
+        ['discord', 'steam'].forEach((k) => {
+          const o = dots[k]; const st = o && !o.d.hidden ? o.d.className.replace('sdot ', '') : 'unknown';
+          add(k.padEnd(9) + st);
+        });
+      } else if (sub === 'panic') {
+        for (let i = 0; i < 8; i++) setTimeout(() => addPulse(Math.random() * W, Math.random() * H), i * 140);
+        scramble(titleEl, TITLE, 1400); add('panic mode.', 'err');
+      } else if (sub === 'reboot') {
+        out.textContent = ''; add('rebooting...', 'dim');
+        setTimeout(() => { out.textContent = ''; booted = false; boot(); addPulse(W / 2, H / 2); }, 900);
+      } else if (sub === 'rm') {
+        add('removing /', 'err');
+        ['home', 'etc', 'usr', 'var', 'the vibes'].forEach((d, i) => setTimeout(() => add('  deleted /' + d, 'dim'), 300 * (i + 1)));
+        setTimeout(() => add('just kidding. everything is fine.', 'ok'), 2000);
+      } else add('sudo: ' + a[0] + ': command not found', 'err');
+    },
     rm() { add('rm: permission denied. nice try.', 'err'); },
     hello() { add('hi.', 'ok'); },
     play() { add('starting snake. arrows / wasd or swipe. esc to quit.', 'ok'); openGame(); },
@@ -1169,6 +1238,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
     requestAnimationFrame(() => inp.focus());
   }
   function closeTerm() {
+    if (pwMode) endPw();
     term.hidden = true;
     openBtn.focus({ preventScroll: true });
   }
@@ -1179,6 +1249,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (pwMode) { const pw = inp.value; inp.value = ''; tryLogin(pw); return; }
     const raw = inp.value.trim();
     inp.value = '';
     if (!raw) return;
@@ -1189,6 +1260,7 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   });
 
   inp.addEventListener('keydown', (e) => {
+    if (pwMode && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Tab')) { e.preventDefault(); return; }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
       if (hIdx > 0) { hIdx--; inp.value = history[hIdx]; }
