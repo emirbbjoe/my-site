@@ -373,6 +373,60 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   .fields > div { padding-inline: 16px; }
 }
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
+/* guestbook + announcement */
+.ann {
+  position: fixed; top: 14px; left: 14px; z-index: 15;
+  max-width: calc(100% - 150px); white-space: normal; text-align: left;
+  border-radius: 18px; letter-spacing: .06em; line-height: 1.45; color: var(--soft);
+}
+.ann[hidden] { display: none; }
+.gb {
+  position: fixed; inset: 0; margin: auto; z-index: 25;
+  width: min(480px, calc(100% - 28px));
+  height: min(620px, calc(100% - 56px));
+  display: flex; flex-direction: column; gap: 10px; padding: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0)), rgba(7, 9, 12, .94);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--line); border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 40px 90px -24px rgba(0, 0, 0, .9), 0 0 60px -20px rgba(var(--accent-rgb), .3);
+  animation: pop .35s var(--spring);
+}
+.gb[hidden] { display: none; }
+.gb-h { display: flex; align-items: center; gap: 8px; }
+.gb-h .pill { background: rgba(255, 255, 255, .035); box-shadow: none; color: var(--soft); }
+.gb-h .x { margin-left: auto; }
+.gb-list {
+  flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 8px;
+  scrollbar-width: thin; scrollbar-color: #2a313c transparent;
+}
+.gb-list li {
+  position: relative; padding: 10px 14px; border-radius: 18px;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line);
+}
+.gb-list li.empty { color: var(--muted); text-align: center; border-style: dashed; }
+.gb-top { display: flex; align-items: baseline; gap: 8px; font-size: 11px; }
+.gb-n { color: var(--fg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gb-ts { color: var(--muted); margin-left: auto; white-space: nowrap; }
+.gb-t { margin-top: 3px; color: var(--soft); font-size: 12.5px; overflow-wrap: anywhere; }
+.gb-del {
+  display: none; font: inherit; font-size: 11px; line-height: 1; padding: 3px 7px; margin-left: 6px;
+  color: var(--danger); background: transparent; border: 1px solid rgba(255, 122, 138, .4); border-radius: 999px; cursor: pointer;
+}
+.gb.adm .gb-del { display: inline-block; }
+.gb-f { display: flex; flex-direction: column; gap: 8px; }
+.gb-f input {
+  width: 100%; font: inherit; font-size: 16px; color: var(--fg);
+  padding: 9px 14px; border-radius: 999px; outline: none;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--line);
+}
+.gb-f input:focus { border-color: rgba(var(--accent-rgb), .55); }
+.gb-f input:disabled { opacity: .5; }
+.gb-row { display: flex; gap: 8px; }
+.gb-row button { flex: none; }
+.gb-msg { min-height: 1.3em; font-size: 11px; color: var(--muted); padding-inline: 6px; }
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+@media (min-width: 601px) { .gb-f input { font-size: 12.5px; } }
 /* boot screen */
 #boot {
   position: fixed; inset: 0; z-index: 100; background: #000; overflow: hidden;
@@ -435,6 +489,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
 <div class="glow" aria-hidden="true"></div>
 <canvas id="bg" aria-hidden="true"></canvas>
 <div id="rave" aria-hidden="true"></div>
+<div class="pill sm ann" id="ann" hidden></div>
 <button class="pill sm party" id="partyBtn" type="button" aria-pressed="false" aria-label="Toggle party mode"><span id="partyTxt">&#10022; party</span></button>
 
 <main class="stage">
@@ -470,6 +525,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
 
   <footer class="foot">
     <span class="pill sm" id="copy"></span>
+    <button class="pill sm" id="gbBtn" type="button" aria-haspopup="dialog"><span class="dot" aria-hidden="true"></span>guestbook</button>
     <button class="pill sm" id="bgBtn" type="button" aria-label="Change background mode"><span class="dot" aria-hidden="true"></span>bg/<b id="bgName">aurora</b></button>
   </footer>
 </main>
@@ -483,6 +539,24 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   <form class="term-f" id="form" autocomplete="off">
     <label for="in" id="ps1"></label>
     <input id="in" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Terminal command">
+  </form>
+</div>
+
+<div class="gb" id="gb" role="dialog" aria-label="Guestbook" hidden>
+  <div class="gb-h">
+    <span class="pill sm"><span class="dot" aria-hidden="true"></span>guestbook</span>
+    <span class="pill sm" id="gbCount">0</span>
+    <button class="x" id="gbX" type="button" aria-label="Close guestbook">✕</button>
+  </div>
+  <ul class="gb-list" id="gbList"></ul>
+  <form class="gb-f" id="gbForm" autocomplete="off">
+    <input id="gbName" type="text" maxlength="24" placeholder="your name (optional)" aria-label="Your name" autocomplete="off">
+    <input class="hp" id="gbWeb" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="gb-row">
+      <input id="gbText" type="text" maxlength="200" placeholder="leave a note..." aria-label="Your note" autocomplete="off" required>
+      <button class="pill sm" id="gbSend" type="submit">send</button>
+    </div>
+    <div class="gb-msg" id="gbMsg" role="status"></div>
   </form>
 </div>
 
@@ -1072,7 +1146,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   document.addEventListener('pointercancel', () => { mouse.on = false; });
   root.addEventListener('pointerleave', () => { mouse.on = false; });
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('#term, #game')) return;
+    if (e.target.closest && e.target.closest('#term, #game, #gb')) return;
     addPulse(e.clientX, e.clientY);
   });
   $('#bgBtn').addEventListener('click', () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]));
@@ -1088,6 +1162,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   // SHA-256 of 'emirbbjoe-salt:' + password. Log in, then type: passwd <new password> to get a new one to paste here.
   const ADMIN_HASH = '19eb5dc81a0ee8f64562f7b3f92468b435c4e870d3bf1e5f3e8b3c5c4cac95fe';
   let authed = false, pwMode = false, fails = 0, lockUntil = 0;
+  let adminTok = null; // real server session (from /api/admin), memory only
   let PS1 = 'visitor@' + UH + ':~$';
   $('#ps1').textContent = PS1;
   function setUser(root) {
@@ -1101,17 +1176,52 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, '0')).join('');
   }
   function endPw() { pwMode = false; inp.type = 'text'; inp.value = ''; $('#ps1').textContent = PS1; }
-  async function tryLogin(pw) {
-    endPw();
-    if (Date.now() < lockUntil) { add('too many attempts. wait ' + Math.ceil((lockUntil - Date.now()) / 1000) + 's.', 'err'); return; }
+  async function api(path, data, auth) {
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 9000);
+    try {
+      const opt = { signal: ctl.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' };
+      if (data) {
+        opt.method = 'POST';
+        opt.headers = { 'Content-Type': 'application/json' };
+        if (auth && adminTok) opt.headers.Authorization = 'Bearer ' + adminTok;
+        opt.body = JSON.stringify(data);
+      }
+      const r = await fetch(path, opt);
+      let j = {};
+      try { j = await r.json(); } catch (e) { /* not json */ }
+      if (!r.ok) { const er = new Error(typeof j.error === 'string' ? j.error : 'request failed'); er.status = r.status; throw er; }
+      return j;
+    } catch (e) {
+      if (e.status) throw e;
+      const er = new Error('cannot reach the server'); er.status = 0; throw er;
+    } finally { clearTimeout(to); }
+  }
+  async function localLogin(pw) {
     let ok = false;
     try { ok = (await sha(pw)) === ADMIN_HASH; }
     catch (e) { add('login needs https (secure context).', 'err'); return; }
-    if (ok) { fails = 0; setUser(true); add('welcome back, ' + CFG.name + '. root access granted.', 'ok'); add("try 'sudo help'.", 'dim'); }
+    if (ok) { fails = 0; setUser(true); add('welcome back, ' + CFG.name + '. root access granted.', 'ok'); add("server admin is offline. 'sudo help' still works.", 'dim'); }
     else {
       fails++;
       if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; }
       setTimeout(() => add('login incorrect.', 'err'), 600);
+    }
+  }
+  async function tryLogin(pw) {
+    endPw();
+    if (Date.now() < lockUntil) { add('too many attempts. wait ' + Math.ceil((lockUntil - Date.now()) / 1000) + 's.', 'err'); return; }
+    add('authenticating...', 'dim');
+    try {
+      const r = await api('/api/admin', { action: 'login', password: pw });
+      adminTok = r.token; fails = 0; setUser(true);
+      add('welcome back, ' + CFG.name + '. root access granted.', 'ok');
+      add("server link ok. type 'admin' to see what you can control.", 'dim');
+      renderGb();
+    } catch (e) {
+      if (e.status === 401) { fails++; if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; } add('login incorrect.', 'err'); }
+      else if (e.status === 429) add(e.message, 'err');
+      else await localLogin(pw); // server admin not set up yet: fall back to the local toy login
     }
   }
   const history = [];
@@ -1165,7 +1275,9 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['ls / cat <file>', 'browse files'],
     ['theme [name]', 'change accent color'],
     ['bg [mode]', 'aurora | warp | flow'],
+    ['guestbook', 'read & sign the wall'],
     ['login / logout', 'become root'],
+    ['admin', 'root: manage the site'],
     ['sudo <cmd>', 'root only · sudo help'],
     ['party', 'toggle party mode'],
     ['pulse', 'send a shockwave'],
@@ -1251,12 +1363,65 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     clear() { out.textContent = ''; },
     pwd() { add('/home/visitor'); },
     cd() { add('cd: this is a one-room site.', 'dim'); },
+    guestbook() { openGb(); },
+    admin() {
+      if (!needAdmin()) return;
+      add('admin commands', 'ok');
+      [['gb list', 'show notes with ids'], ['gb rm <id>', 'delete one note'], ['gb clear yes', 'delete ALL notes'],
+       ['gb lock / unlock', 'stop / allow new notes'], ['announce <text>', 'banner on top of the site'], ['announce off', 'remove the banner'],
+       ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
+        .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
+    },
+    async gb(a) {
+      const sub = (a[0] || '').toLowerCase();
+      if (!sub) { openGb(); return; }
+      if (!needAdmin()) return;
+      if (sub === 'list') {
+        try {
+          const r = await api('/api/guestbook');
+          if (!r.items.length) { add('no notes yet.', 'dim'); return; }
+          r.items.forEach((it) => add(String(it.id) + '  ' + String(it.n).slice(0, 14).padEnd(14) + ' ' + String(it.t).slice(0, 70) + '  (' + ago(it.ts) + ')'));
+        } catch (e) { add(e.message, 'err'); }
+      } else if (sub === 'rm' || sub === 'del') {
+        if (!/^[0-9a-f]{8}$/.test(a[1] || '')) { add('usage: gb rm <id>  (see gb list)', 'err'); return; }
+        const r = await adm('del', { id: a[1] });
+        if (r) { gbItems = gbItems.filter((x) => x.id !== a[1]); renderGb(); add(r.removed ? 'deleted ' + a[1] : 'no note with that id', r.removed ? 'ok' : 'err'); }
+      } else if (sub === 'clear') {
+        if ((a[1] || '').toLowerCase() !== 'yes') { add('this deletes every note. type: gb clear yes', 'err'); return; }
+        const r = await adm('clear', {});
+        if (r) { gbItems = []; renderGb(); add('guestbook cleared.', 'ok'); }
+      } else if (sub === 'lock' || sub === 'unlock') {
+        const r = await adm('cfg', { locked: sub === 'lock' });
+        if (r) { applyCfg(r.cfg); add('guestbook ' + (sub === 'lock' ? 'locked.' : 'open again.'), 'ok'); }
+      } else add('unknown: gb ' + sub + "  (try 'admin')", 'err');
+    },
+    async announce(a, raw) {
+      if (!needAdmin()) return;
+      if (!raw) { add('usage: announce <text>  |  announce off', 'err'); return; }
+      const r = await adm('cfg', { announce: raw.toLowerCase() === 'off' ? '' : raw });
+      if (r) { applyCfg(r.cfg); add(r.cfg.announce ? 'banner set.' : 'banner removed.', 'ok'); }
+    },
+    async bio(a, raw) {
+      if (!needAdmin()) return;
+      if (!raw) { add('usage: bio line one | line two  |  bio reset', 'err'); return; }
+      const r = await adm('cfg', { bio: raw.toLowerCase() === 'reset' ? null : raw.split('|').map((x) => x.trim()).filter(Boolean) });
+      if (r) { applyCfg(r.cfg); add('about text updated. try: about', 'ok'); }
+    },
+    async site() {
+      if (!needAdmin()) return;
+      const r = await adm('cfg', {});
+      if (r) {
+        add('announce  ' + (r.cfg.announce || '(none)'));
+        add('guestbook ' + (r.cfg.locked ? 'locked' : 'open'));
+        add('bio       ' + (r.cfg.bio ? r.cfg.bio.join(' | ') : '(default)'));
+      }
+    },
     login() {
       if (authed) { add('already root.', 'dim'); return; }
       pwMode = true; inp.type = 'password'; inp.value = '';
       $('#ps1').textContent = 'password:';
     },
-    logout() { if (!authed) { add('not logged in.', 'dim'); return; } setUser(false); add('logged out.', 'ok'); },
+    logout() { if (!authed) { add('not logged in.', 'dim'); return; } setUser(false); adminTok = null; renderGb(); add('logged out.', 'ok'); },
     passwd(a, raw) {
       if (!authed) { add('permission denied. login first.', 'err'); return; }
       if (!raw) { add('usage: passwd <new password>', 'err'); return; }
@@ -1372,6 +1537,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
 
   document.addEventListener('keydown', (e) => {
     if (game.open) { gameKey(e); return; }
+    if (e.key === 'Escape' && !gbEl.hidden) { closeGb(); return; }
     if (e.key === 'Escape' && !term.hidden) { closeTerm(); return; }
     if (e.key === '`' || e.code === 'Backquote') {
       const tg = e.target;
@@ -1452,6 +1618,105 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     }
     run();
   })();
+
+  /* ---------- guestbook, announcement, server admin ---------- */
+  const gbEl = $('#gb'), gbList = $('#gbList'), gbCount = $('#gbCount'), gbForm = $('#gbForm');
+  const gbName = $('#gbName'), gbText = $('#gbText'), gbWeb = $('#gbWeb'), gbMsg = $('#gbMsg'), gbSend = $('#gbSend');
+  const BIO0 = CFG.bio.slice();
+  let gbItems = [], gbLocked = false, gbBusy = false, gbOpener = null;
+  function ago(ts) {
+    const s = Math.max(0, Math.floor((Date.now() - (+ts || 0)) / 1000));
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+  function needAdmin() {
+    if (adminTok) return true;
+    add(authed ? 'server admin is not connected. set ADMIN_PASSWORD in Vercel, then login again.' : 'permission denied. login first.', 'err');
+    return false;
+  }
+  async function adm(action, data) {
+    try { return await api('/api/admin', Object.assign({ action }, data), true); }
+    catch (e) {
+      if (e.status === 401) { adminTok = null; renderGb(); add('session expired. login again.', 'err'); }
+      else add(e.message, 'err');
+      return null;
+    }
+  }
+  function gbSay(t) { gbMsg.textContent = t || ''; }
+  function renderGb(items) {
+    if (items) gbItems = items;
+    gbEl.classList.toggle('adm', !!adminTok);
+    gbList.textContent = '';
+    if (!gbItems.length) {
+      const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'no notes yet. be the first.';
+      gbList.appendChild(li);
+    }
+    gbItems.forEach((it) => {
+      const li = document.createElement('li');
+      const top = document.createElement('div'); top.className = 'gb-top';
+      const n = document.createElement('span'); n.className = 'gb-n'; n.textContent = String(it.n || 'anon');
+      const ts = document.createElement('span'); ts.className = 'gb-ts'; ts.textContent = ago(it.ts);
+      top.append(n, ts);
+      if (adminTok && /^[0-9a-f]{8}$/.test(String(it.id))) {
+        const d = document.createElement('button');
+        d.type = 'button'; d.className = 'gb-del'; d.textContent = '✕'; d.setAttribute('aria-label', 'Delete note');
+        d.addEventListener('click', async () => {
+          const r = await adm('del', { id: it.id });
+          if (r) { gbItems = gbItems.filter((x) => x.id !== it.id); renderGb(); }
+        });
+        top.appendChild(d);
+      }
+      const t = document.createElement('div'); t.className = 'gb-t'; t.textContent = String(it.t || '');
+      li.append(top, t);
+      gbList.appendChild(li);
+    });
+    gbCount.textContent = gbItems.length + (gbItems.length === 1 ? ' note' : ' notes');
+  }
+  function updateGbLock() {
+    gbText.disabled = gbName.disabled = gbSend.disabled = gbLocked;
+    if (gbLocked) gbSay('the wall is locked right now.');
+    else if (gbMsg.textContent === 'the wall is locked right now.') gbSay('');
+  }
+  async function loadGb() {
+    try { const r = await api('/api/guestbook'); gbLocked = !!r.locked; renderGb(Array.isArray(r.items) ? r.items : []); updateGbLock(); gbSay(gbLocked ? 'the wall is locked right now.' : ''); }
+    catch (e) { renderGb([]); gbSay('guestbook is offline right now.'); }
+  }
+  function openGb() {
+    gbOpener = document.activeElement;
+    gbName.value = store.get('gbName') || '';
+    gbEl.hidden = false; renderGb(); gbSay('loading...'); loadGb();
+    requestAnimationFrame(() => gbText.focus());
+  }
+  function closeGb() {
+    gbEl.hidden = true;
+    if (gbOpener && gbOpener.focus) gbOpener.focus({ preventScroll: true });
+  }
+  $('#gbBtn').addEventListener('click', openGb);
+  $('#gbX').addEventListener('click', closeGb);
+  gbForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = gbText.value.trim();
+    if (!text || gbBusy || gbLocked) return;
+    gbBusy = true; gbSend.disabled = true; gbSay('sending...');
+    try {
+      const r = await api('/api/guestbook', { name: gbName.value, text, website: gbWeb.value });
+      store.set('gbName', gbName.value.slice(0, 24));
+      gbText.value = '';
+      if (r.item) { gbItems.unshift(r.item); renderGb(); gbList.scrollTop = 0; }
+      gbSay('thanks, posted.');
+    } catch (err) { gbSay(err.status === 0 || err.status === 503 ? 'guestbook is offline right now.' : err.message); }
+    gbBusy = false; gbSend.disabled = gbLocked;
+  });
+  function applyCfg(c) {
+    const ann = $('#ann');
+    if (c && typeof c.announce === 'string' && c.announce) { ann.textContent = c.announce; ann.hidden = false; } else { ann.textContent = ''; ann.hidden = true; }
+    const bio = c && Array.isArray(c.bio) && c.bio.length ? c.bio.filter((x) => typeof x === 'string') : BIO0;
+    CFG.bio.splice(0, CFG.bio.length, ...bio);
+    gbLocked = !!(c && c.locked); updateGbLock();
+  }
+  if (!NP_DEMO) api('/api/site').then(applyCfg).catch(() => { /* site settings are optional */ });
 
   /* ---------- party mode: drop a party.mp3 next to index.html to use your own song; otherwise a built-in beat plays ---------- */
   const partyBtn = $('#partyBtn'), partyTxt = $('#partyTxt');
