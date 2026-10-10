@@ -169,11 +169,13 @@ button.pill:active { transform: scale(.96); }
   text-align: left;
   display: flex; flex-direction: column; gap: 12px;
   padding: 14px;
-  background: var(--pill);
+  --c: var(--accent-rgb); /* set live from the album cover */
+  background: linear-gradient(135deg, rgba(var(--c), .24), rgba(var(--c), .05) 65%), var(--pill);
   -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  border: 1px solid var(--line); border-radius: 30px;
-  box-shadow: var(--lift);
+  border: 1px solid rgba(var(--c), .38); border-radius: 30px;
+  box-shadow: var(--lift), 0 0 44px -14px rgba(var(--c), .6);
   animation: pop .5s var(--spring);
+  transition: border-color .7s ease, box-shadow .7s ease;
 }
 .np[hidden] { display: none; }
 .np-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
@@ -187,7 +189,7 @@ button.pill:active { transform: scale(.96); }
 .np-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .np-art img:not([src]) { display: none; }
 .np-meta { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.np-tag { color: var(--soft); background: rgba(255, 255, 255, .035); box-shadow: none; }
+.np-tag { color: var(--soft); background: rgba(var(--c), .12); border-color: rgba(var(--c), .35); box-shadow: none; }
 .np-title {
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--fg); text-decoration: none; font-size: 13.5px; font-weight: 500;
@@ -199,11 +201,11 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 .np-prog .bar { flex: 1; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
 .np-prog .bar i {
   display: block; height: 100%; width: 0; border-radius: 999px;
-  background: var(--accent); box-shadow: 0 0 12px rgba(var(--accent-rgb), .6);
+  background: rgb(var(--c)); box-shadow: 0 0 12px rgba(var(--c), .7);
   transition: width 1s linear;
 }
 .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 10px; }
-.eq i { width: 2px; height: 40%; border-radius: 2px; background: var(--accent); animation: eq 1s ease-in-out infinite; }
+.eq i { width: 2px; height: 40%; border-radius: 2px; background: rgb(var(--c, var(--accent-rgb))); animation: eq 1s ease-in-out infinite; }
 .eq i:nth-child(2) { animation-delay: -.4s; }
 .eq i:nth-child(3) { animation-delay: -.7s; }
 @keyframes eq { 50% { height: 100%; } }
@@ -725,7 +727,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     npTitle.textContent = String(d.song || '').slice(0, 200);
     npArtist.textContent = String(d.artist || '').replace(/;\s*/g, ', ').slice(0, 200);
     const art = typeof d.album_art_url === 'string' && d.album_art_url.indexOf('https://i.scdn.co/image/') === 0 ? d.album_art_url : '';
-    if (art) { if (npArt.getAttribute('src') !== art) npArt.src = art; } else npArt.removeAttribute('src');
+    if (art) { if (npArt.getAttribute('src') !== art) { npArt.crossOrigin = 'anonymous'; npArt.src = art; } }
+    else { npArt.removeAttribute('src'); npEl.style.removeProperty('--c'); }
     if (/^[A-Za-z0-9]{10,30}$/.test(String(d.track_id || ''))) npTitle.href = 'https://open.spotify.com/track/' + d.track_id;
     else npTitle.removeAttribute('href');
     const ts = d.timestamps || {};
@@ -734,7 +737,44 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     npEl.hidden = false;
     renderProgress();
   }
-  npArt.addEventListener('error', () => npArt.removeAttribute('src'));
+  /* tint the card with the cover's dominant color */
+  function coverColor(img) {
+    const N = 24, c = document.createElement('canvas'); c.width = c.height = N;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, N, N);
+    const px = g.getImageData(0, 0, N, N).data;
+    const b = Array.from({ length: 12 }, () => [0, 0, 0, 0]);
+    let ar = 0, ag = 0, ab = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i], gg = px[i + 1], bl = px[i + 2];
+      ar += r; ag += gg; ab += bl;
+      const mx = Math.max(r, gg, bl), mn = Math.min(r, gg, bl), d = mx - mn;
+      if (mx < 40 || d < 20) continue;
+      const sat = d / mx, w = sat * sat * (mx / 255);
+      let h = mx === r ? ((gg - bl) / d) % 6 : mx === gg ? (bl - r) / d + 2 : (r - gg) / d + 4;
+      h = (h * 60 + 360) % 360;
+      const k = b[Math.floor(h / 30) % 12];
+      k[0] += r * w; k[1] += gg * w; k[2] += bl * w; k[3] += w;
+    }
+    let best = b[0];
+    for (const k of b) if (k[3] > best[3]) best = k;
+    let rgbv;
+    if (best[3] < 0.5) { const n = px.length / 4; rgbv = [ar / n, ag / n, ab / n]; }
+    else rgbv = [best[0] / best[3], best[1] / best[3], best[2] / best[3]];
+    const mx = Math.max(rgbv[0], rgbv[1], rgbv[2]) || 1;
+    if (mx < 50) return ''; /* near-black cover: keep the default tint */
+    const f = Math.min(2.4, 225 / mx);
+    return rgbv.map((x) => Math.max(0, Math.min(255, Math.round(x * f)))).join(',');
+  }
+  npArt.addEventListener('load', () => {
+    try { npEl.style.setProperty('--c', coverColor(npArt)); }
+    catch (e) { npEl.style.removeProperty('--c'); /* cover not readable: keep default tint */ }
+  });
+  npArt.addEventListener('error', () => {
+    const src = npArt.getAttribute('src');
+    if (src && npArt.crossOrigin) { npArt.removeAttribute('crossorigin'); npArt.src = src; } /* retry plain so the cover still shows */
+    else npArt.removeAttribute('src');
+  });
   function setDot(id, st) {
     const o = dots[id]; if (!o) return;
     const ok = st === 'online' || st === 'idle' || st === 'dnd' || st === 'offline';
