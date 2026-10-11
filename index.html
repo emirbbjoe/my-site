@@ -589,13 +589,6 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   80% { filter: drop-shadow(0 0 22px #8a2dff); } 100% { filter: drop-shadow(0 0 22px #ff2d95); }
 }
 @media (max-width: 600px) { .party { top: 10px; right: 10px; } }
-@media (prefers-reduced-motion: reduce) {
-  body.rave #rave, body.rave .title { animation: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .dot, .term, .eq i, .np, .game { animation: none; }
-  .card, .bubble, .pill, .x, .fields > div { transition: none; }
-}
 </style>
 <!-- Vercel Web Analytics: counts visits (no cookies). Turn it on in Vercel -> your project -> Analytics. -->
 <script defer src="/_vercel/insights/script.js"></script>
@@ -781,7 +774,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   /* ------------------------------------------------------------ */
 
   const $ = (s) => document.querySelector(s);
-  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const RM = false; // always animate: Windows 'animation effects: off' made Brave/Edge report reduced motion and hid the title scramble, tilt and bg motion
   const S = RM ? 0.3 : 1;
   const root = document.documentElement;
   const store = {
@@ -1448,6 +1441,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   };
   const ARGS = {
     perf: () => ['low', 'high'],
+    jarvis: () => ['yes', 'no'],
     theme: () => Object.keys(THEMES),
     themeall: () => Object.keys(THEMES).concat('off'),
     bgall: () => MODES.concat('off'),
@@ -1498,6 +1492,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['clip', 'watch the clip of the day'],
     ['login / logout', 'become root'],
     ['admin', 'root: manage the site'],
+    ['jarvis', 'root: tell jarvis what to do in plain words'],
     ['sudo <cmd>', 'root only · sudo help'],
     ['party', 'toggle party mode'],
     ['pulse', 'send a shockwave'],
@@ -1603,7 +1598,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
        ['clip', 'open player (drop a file to upload)'], ['clip title <text>', 'rename the clip'], ['clip rm yes', 'delete the clip'],
        ['clip url <blob url>', 'use a clip already in Blob'],
        ['themeall <name>', 'set the theme for everyone'], ['bgall <aurora|warp|flow>', 'set the background for everyone'], ['themeall off', 'stop forcing a theme'],
-       ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
+       ['jarvis <anything>', 'plain words → commands (aliases: j, ai)'], ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
         .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
     },
     async gb(a) {
@@ -1628,6 +1623,38 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
         const r = await adm('cfg', { locked: sub === 'lock' });
         if (r) { applyCfg(r.cfg); add('guestbook ' + (sub === 'lock' ? 'locked.' : 'open again.'), 'ok'); }
       } else add('unknown: gb ' + sub + "  (try 'admin')", 'err');
+    },
+    async jarvis(a, raw) {
+      if (!needAdmin()) return;
+      const low = raw.toLowerCase().trim();
+      if (!raw) { add('jarvis online. tell me what to do, e.g.  jarvis put a banner saying new clip tonight', 'dim'); return; }
+      if ((low === 'yes' || low === 'y' || low === 'do it') && jvPending.length) {
+        const todo = jvPending; jvPending = [];
+        for (const c of todo) await jvRun(c);
+        return;
+      }
+      if ((low === 'no' || low === 'n' || low === 'cancel') && jvPending.length) { jvPending = []; add('jarvis: cancelled.', 'dim'); return; }
+      jvPending = [];
+      if (/^(help|what can you do|\?|commands|examples?)$/.test(low)) {
+        add('jarvis: just say it. i understand things like:', 'ok');
+        ['put a banner saying new clip tonight', 'remove the banner', 'make the site cyber for everyone', 'background warp for everyone', 'lock the guestbook', 'delete all notes',
+         'rename the clip to insane 1v4', 'change my bio to gamer | builder | night owl', 'the site is laggy', 'colors follow my music', 'party', 'status']
+          .forEach((x) => add('  jarvis ' + x, 'dim'));
+        add('you can chain things: "warp background and amber theme and lock the guestbook"', 'dim');
+        return;
+      }
+      const r = jvParse(raw);
+      if (!r.commands.length) { add("jarvis: i didn't catch that. say 'jarvis help' for examples.", 'err'); return; }
+      add('jarvis: ' + r.say, 'ok');
+      const cs = (r.commands || []).filter((c) => typeof c === 'string' && JV_OK.includes(c.trim().split(/\s+/)[0].toLowerCase()));
+      const safe = cs.filter((c) => !jvRisky(c)), risky = cs.filter(jvRisky);
+      for (const c of safe) await jvRun(c);
+      if (risky.length) {
+        jvPending = risky;
+        add('jarvis: these delete things. confirm?', 'err');
+        risky.forEach((c) => add('  ' + c, 'dim'));
+        add("type 'jarvis yes' or 'jarvis no'", 'dim');
+      }
     },
     async announce(a, raw) {
       if (!needAdmin()) return;
@@ -1729,12 +1756,99 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       } else add('sudo: ' + a[0] + ': command not found', 'err');
     },
     rm() { add('rm: permission denied. nice try.', 'err'); },
+    j(a, raw) { return cmds.jarvis(a, raw); },
+    ai(a, raw) { return cmds.jarvis(a, raw); },
     hello() { add('hi.', 'ok'); },
     play() { add('starting snake. arrows / wasd or swipe. esc to quit.', 'ok'); openGame(); },
     snake() { cmds.play(); },
     exit() { closeTerm(); },
     quit() { closeTerm(); }
   };
+
+  /* jarvis helpers: he can only use the commands below; deleting things always needs your yes */
+  const JV_OK = ['announce', 'bio', 'theme', 'themeall', 'bg', 'bgall', 'perf', 'musiccolors', 'gb', 'clip', 'party', 'pulse', 'glitch', 'site'];
+  const jvRisky = (c) => /^gb\s+(clear|rm|del)\b/i.test(c) || /^clip\s+(rm|del)\b/i.test(c);
+  let jvPending = [];
+  /* jarvis brain: no AI, no key. it reads your sentence, finds what you want and turns it into terminal commands */
+  const JV_COLORS = { red: 'crimson', blue: 'ocean', green: 'lime', purple: 'violet', pink: 'rose', orange: 'sunset', yellow: 'gold', white: 'mono', black: 'mono', gray: 'mono', grey: 'mono', cyan: 'cyber', teal: 'mint', neon: 'cyber', default: 'mono' };
+  const JV_BG = { aurora: 'aurora', northern: 'aurora', warp: 'warp', stars: 'warp', hyperspace: 'warp', space: 'warp', flow: 'flow', lines: 'flow', waves: 'flow' };
+  function jvParse(input) {
+    let t = ' ' + input.trim() + ' ';
+    const cmdsOut = [], notes = [];
+    const push = (c, n) => { if (!cmdsOut.includes(c)) { cmdsOut.push(c); if (n) notes.push(n); } };
+    const q = t.match(/["“”']([^"“”']{1,120})["“”']/);
+    const quoted = q ? q[1].trim() : '';
+    if (q) t = t.replace(q[0], ' \u0001 ');
+    const everyone = /\b(everyone|everybody|all (the )?(visitors|users|people)|visitors|default|for all|globally)\b/;
+    // text-carrying intents swallow the rest of the sentence, so "and" inside a banner text stays in the banner
+    const tail = (m) => (quoted || (m || '').trim().replace(/\u0001/g, quoted)).replace(/^(that|which)\s+/, '').replace(/^(say|says|saying|reads?|to say|with)\s+/, '').trim();
+    let m;
+    if ((m = t.match(/\b(banner|announce(?:ment)?|led sign|led|ticker|marquee|sign)\b\s*(?:(?:that\s+)?(?:says?|saying|reads?|with|to|:)\s+)?(.*)$/i)) && !/\b(off|remove|clear|stop|hide|delete|kill|disable|take down)\b/.test(m[2].slice(0, 20)) && tail(m[2]) && !/^(on|up)$/i.test(tail(m[2]))) {
+      const x = tail(m[2]).slice(0, 120); push('announce ' + x, 'banner');
+      const ph = quoted ? t.indexOf('\u0001', m.index) : -1;
+      t = t.slice(0, m.index) + ' ' + (ph >= 0 ? t.slice(ph + 1) : '');
+    } else if (/\b(banner|announcement|led sign|ticker|marquee|sign)\b/.test(t) && /\b(off|remove|clear|stop|hide|delete|kill|disable|take down|get rid)\b/.test(t)) {
+      push('announce off', 'banner off');
+    }
+    if ((m = t.match(/\b(?:bio|about(?: text| me)?)\b\s*(?:(?:to|say|says|saying|:)\s+)?(.*)$/i)) && /\b(change|set|update|make|write|bio)\b/.test(t) && tail(m[1])) {
+      if (/^reset|restore|default/.test(tail(m[1]))) push('bio reset', 'about reset'); else push('bio ' + tail(m[1]), 'about text');
+      t = t.slice(0, m.index) + ' ';
+    }
+    if ((m = t.match(/\bclip\b[^]*?\b(?:title|name|rename|called|to|:)\s+(.+)$/i)) && /\b(rename|title|name|call)\b/.test(t) && tail(m[1])) {
+      push('clip title ' + tail(m[1]), 'clip title'); t = t.slice(0, m.index) + ' ';
+    }
+    const clauses = t.split(/\s*(?:,|;|\band then\b|\bthen\b|\balso\b|\bplus\b|\band\b)\s+/i).map((x) => x.trim()).filter(Boolean);
+    for (const c0 of clauses) {
+      const c = ' ' + c0.toLowerCase() + ' ';
+      const all = everyone.test(c);
+      let found = false;
+      // background
+      const bgw = Object.keys(JV_BG).find((k) => new RegExp('\\b' + k + '\\b').test(c));
+      if (bgw && (/\b(bg|background|backdrop|wallpaper|animation)\b/.test(c) || c.trim().split(/\s+/).length <= 3 || /\b(switch|change|set|use|go)\b/.test(c))) {
+        push((all ? 'bgall ' : 'bg ') + JV_BG[bgw], 'background ' + JV_BG[bgw]); found = true;
+      }
+      // theme / color
+      const names = Object.keys(THEMES);
+      const th = names.find((k) => new RegExp('\\b' + k + '\\b').test(c)) || Object.keys(JV_COLORS).find((k) => new RegExp('\\b' + k + '\\b').test(c) && /\b(theme|colou?rs?|look|vibe|paint|make (it|the site|everything)|turn (it|the site)|switch|change)\b/.test(c));
+      if (!found && th) {
+        const nm = Object.prototype.hasOwnProperty.call(THEMES, th) ? th : JV_COLORS[th];
+        if (/\b(reset|undo|off|stop forcing|unforce)\b/.test(c) && all) push('themeall off', 'theme unforced');
+        else push((all ? 'themeall ' : 'theme ') + nm, 'theme ' + nm);
+        found = true;
+      } else if (!found && /\b(theme|colou?rs?)\b/.test(c) && /\b(reset|undo|stop forcing|unforce)\b/.test(c)) { push('themeall off', 'theme unforced'); found = true; }
+      // graphics
+      if (/\b(lag|laggy|lagging|slow|fps|performance|lite|light mode|low graphics|lighter)\b/.test(c)) { push('perf low', 'light graphics'); found = true; }
+      else if (/\b(high graphics|glass|fancy|best quality|smooth|full quality|high quality)\b/.test(c)) { push('perf high', 'high graphics'); found = true; }
+      // music colors
+      if (/\b(music|song|spotify)\b/.test(c) && /\bcolou?rs?\b/.test(c)) { push('musiccolors ' + (/\b(off|stop|disable|don'?t|dont|no longer)\b/.test(c) ? 'off' : 'on'), 'music colors'); found = true; }
+      // guestbook
+      if (/\b(guestbook|guest book|notes?|messages?|wall)\b/.test(c)) {
+        const id = (c.match(/\b([0-9a-f]{8})\b/) || [])[1];
+        if (/\b(unlock|reopen|re-open|open|allow|enable|resume)\b/.test(c) && !/\b(delete|remove|clear|wipe)\b/.test(c)) { push('gb unlock', 'guestbook open'); found = true; }
+        else if (/\b(lock|close|disable|freeze|stop new|pause)\b/.test(c) && !/\b(delete|remove|clear|wipe)\b/.test(c)) { push('gb lock', 'guestbook locked'); found = true; }
+        else if (/\b(delete|remove|clear|wipe|erase|nuke|purge)\b/.test(c)) { if (id) push('gb rm ' + id, 'delete note ' + id); else push('gb clear yes', 'wipe the guestbook'); found = true; }
+        else if (/\b(show|list|see|read|what)\b/.test(c)) { push('gb list', 'list notes'); found = true; }
+      }
+      // clip
+      if (/\bclip\b/.test(c) && !found) {
+        if (/\b(delete|remove|clear|wipe|take down)\b/.test(c)) push('clip rm yes', 'delete the clip');
+        else if (/\b(open|show|play|watch|upload)\b/.test(c)) push('clip', 'open the clip');
+        if (cmdsOut.length) found = true;
+      }
+      // fun
+      if (/\b(party|rave|disco)\b/.test(c)) { push('party', 'party toggled'); found = true; }
+      if (/\b(pulse|ripple|shockwave)\b/.test(c)) { push('pulse', 'pulse'); found = true; }
+      if (/\b(glitch|scramble|shake)\b/.test(c)) { push('glitch', 'glitch'); found = true; }
+      if (!found && /\b(status|settings|config|state|site info)\b/.test(c)) { push('site', 'settings'); found = true; }
+    }
+    return { commands: cmdsOut, say: cmdsOut.length ? 'on it — ' + notes.join(', ') + '.' : '' };
+  }
+  async function jvRun(c) {
+    const [k, ...a] = c.trim().split(/\s+/), key = k.toLowerCase();
+    if (!JV_OK.includes(key) || !Object.prototype.hasOwnProperty.call(cmds, key)) return;
+    echoCmd(c);
+    try { await cmds[key](a, c.trim().slice(k.length).trim()); } catch (e) { add('failed: ' + c, 'err'); }
+  }
 
   function run(raw) {
     const [c, ...a] = raw.trim().split(/\s+/);
