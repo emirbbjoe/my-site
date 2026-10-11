@@ -671,17 +671,37 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   let rgb = THEMES.mono.g.join(',');
   let rgb2 = THEMES.mono.h.join(',');
   let accRgb = THEMES.mono.a.join(',');
+  let raveActive = false;                         // party mode owns the colors while true
+  let musicRGB = '';                              // dominant color of the cover playing right now
+  let musicOn = store.get('mc') !== '0';          // visitors can switch the music colors off
+  function shiftRGB(c) {                          // second glow color: same cover color, hue turned ~40deg
+    const [r, g, b] = c.split(',').map((x) => (+x) / 255);
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
+    let h = 0;
+    if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    h = ((h * 60 + 40) % 360 + 360) % 360;
+    const sat = d ? d / (1 - Math.abs(2 * l - 1)) : 0, k = (1 - Math.abs(2 * l - 1)) * sat;
+    const x = k * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - k / 2;
+    const [r1, g1, b1] = h < 60 ? [k, x, 0] : h < 120 ? [x, k, 0] : h < 180 ? [0, k, x] : h < 240 ? [0, x, k] : h < 300 ? [x, 0, k] : [k, 0, x];
+    return [r1 + m, g1 + m, b1 + m].map((v) => Math.round(v * 255)).join(',');
+  }
+  function paint(acc, g, h) {
+    rgb = g; rgb2 = h; accRgb = acc;
+    root.style.setProperty('--accent', 'rgb(' + acc + ')');
+    root.style.setProperty('--accent-rgb', acc);
+    root.style.setProperty('--g-rgb', g);
+  }
+  function refreshColors() {
+    if (raveActive) return;
+    if (musicRGB && musicOn) { paint(musicRGB, musicRGB, shiftRGB(musicRGB)); return; }
+    const th = THEMES[themeName];
+    paint(th.a.join(','), (th.g || th.a).join(','), (th.h || th.b).join(','));
+  }
   function setTheme(name) {
     if (!Object.prototype.hasOwnProperty.call(THEMES, name)) return false;
     themeName = name;
-    const th = THEMES[name], acc = th.a.join(',');
-    rgb = (th.g || th.a).join(',');
-    rgb2 = (th.h || th.b).join(',');
-    root.style.setProperty('--accent', 'rgb(' + acc + ')');
-    root.style.setProperty('--accent-rgb', acc);
-    accRgb = acc;
-    root.style.setProperty('--g-rgb', rgb);
     store.set('theme', name);
+    refreshColors();
     return true;
   }
   const savedTheme = store.get('theme');
@@ -828,12 +848,12 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     npDur.textContent = fmtT(total);
   }
   function showNP(d) {
-    if (!d) { npEl.hidden = true; np = null; return; }
+    if (!d) { npEl.hidden = true; np = null; if (musicRGB) { musicRGB = ''; refreshColors(); } return; }
     npTitle.textContent = String(d.song || '').slice(0, 200);
     npArtist.textContent = String(d.artist || '').replace(/;\s*/g, ', ').slice(0, 200);
     const art = typeof d.album_art_url === 'string' && d.album_art_url.indexOf('https://i.scdn.co/image/') === 0 ? d.album_art_url : '';
     if (art) { if (npArt.getAttribute('src') !== art) { npArt.crossOrigin = 'anonymous'; npArt.src = art; } }
-    else { npArt.removeAttribute('src'); npEl.style.removeProperty('--c'); }
+    else { npArt.removeAttribute('src'); npEl.style.removeProperty('--c'); if (musicRGB) { musicRGB = ''; refreshColors(); } }
     if (/^[A-Za-z0-9]{10,30}$/.test(String(d.track_id || ''))) npTitle.href = 'https://open.spotify.com/track/' + d.track_id;
     else npTitle.removeAttribute('href');
     const ts = d.timestamps || {};
@@ -872,8 +892,9 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     return rgbv.map((x) => Math.max(0, Math.min(255, Math.round(x * f)))).join(',');
   }
   npArt.addEventListener('load', () => {
-    try { npEl.style.setProperty('--c', coverColor(npArt)); }
-    catch (e) { npEl.style.removeProperty('--c'); /* cover not readable: keep default tint */ }
+    try { const c = coverColor(npArt); npEl.style.setProperty('--c', c); musicRGB = c; }
+    catch (e) { npEl.style.removeProperty('--c'); musicRGB = ''; /* cover not readable: keep the normal theme */ }
+    refreshColors();
   });
   npArt.addEventListener('error', () => {
     const src = npArt.getAttribute('src');
@@ -1306,6 +1327,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['open <name>', 'open a link'],
     ['ls / cat <file>', 'browse files'],
     ['theme [name]', 'change accent color'],
+    ['musiccolors', 'on | off: site follows my music'],
     ['bg [mode]', 'aurora | warp | flow'],
     ['guestbook', 'read & sign the wall'],
     ['login / logout', 'become root'],
@@ -1356,9 +1378,14 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       if (!Object.prototype.hasOwnProperty.call(FILES, key)) { add('cat: ' + a[0] + ': no such file', 'err'); return; }
       FILES[key]().forEach((l) => add(l));
     },
+    musiccolors(a) {
+      const v = (a[0] || '').toLowerCase();
+      if (v === 'on' || v === 'off') { musicOn = v === 'on'; store.set('mc', musicOn ? '1' : '0'); refreshColors(); }
+      add('music colors: ' + (musicOn ? 'on' : 'off') + (a[0] ? '' : "  (use 'musiccolors on' or 'off')"), 'ok');
+    },
     theme(a) {
       if (!a[0]) { add('themes: ' + Object.keys(THEMES).join(', ') + '  (current: ' + themeName + ')'); return; }
-      if (setTheme(a[0].toLowerCase())) { store.set('themeAt', String(Date.now())); add('theme → ' + themeName, 'ok'); }
+      if (setTheme(a[0].toLowerCase())) { store.set('themeAt', String(Date.now())); add('theme → ' + themeName, 'ok'); if (musicRGB && musicOn) add("(colors follow the music while it plays. 'musiccolors off' to stop that)", 'dim'); }
       else add('unknown theme: ' + a[0], 'err');
     },
     bg(a) {
@@ -1834,7 +1861,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     party.sched = setInterval(tick, 80); tick();
   }
   function partyOn() {
-    party.on = true;
+    party.on = true; raveActive = true;
     document.body.classList.add('rave');
     partyBtn.setAttribute('aria-pressed', 'true'); partyTxt.textContent = '■ stop';
     let fell = false;
@@ -1849,13 +1876,13 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     party.beat = setInterval(raveBeat, 469); raveBeat();
   }
   function partyOff() {
-    party.on = false;
+    party.on = false; raveActive = false;
     clearInterval(party.beat); clearInterval(party.sched);
     if (party.audio) { try { party.audio.pause(); } catch (e) { /* ignore */ } party.audio = null; }
     if (party.ctx) { try { party.ctx.close(); } catch (e) { /* ignore */ } party.ctx = null; }
     document.body.classList.remove('rave', 'beat');
     partyBtn.setAttribute('aria-pressed', 'false'); partyTxt.textContent = '✦ party';
-    setTheme(themeName);
+    refreshColors();
   }
   function toggleParty() { if (party.on) partyOff(); else partyOn(); }
   partyBtn.addEventListener('click', toggleParty);
