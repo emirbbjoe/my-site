@@ -82,7 +82,9 @@ async function getCfg() {
       bio: Array.isArray(c.bio) ? c.bio.filter((x) => typeof x === 'string').slice(0, 6) : null,
       locked: c.locked === true,
       theme: typeof c.theme === 'string' && /^[a-z]{2,12}$/.test(c.theme) ? c.theme : '',
-      themeAt: Number(c.themeAt) || 0
+      themeAt: Number(c.themeAt) || 0,
+      bg: typeof c.bg === 'string' && /^[a-z]{2,10}$/.test(c.bg) ? c.bg : '',
+      bgAt: Number(c.bgAt) || 0
     };
   } catch (e) { return { announce: '', bio: null, locked: false }; }
 }
