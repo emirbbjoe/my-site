@@ -96,4 +96,15 @@ async function listItems(n) {
   return out;
 }
 
-module.exports = { configured, redis, pipe, send, body, ipHash, clean, makeToken, tokenOk, passOk, getCfg, listItems, ADMIN };
+const BLOB_URL = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/clips\/[A-Za-z0-9._\-\/]+$/;
+async function getClip() {
+  try {
+    const raw = await redis(['GET', 'clip:cur']);
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || typeof c.url !== 'string' || !BLOB_URL.test(c.url)) return null;
+    return { url: c.url, title: clean(c.title, 80), ts: Number(c.ts) || 0, size: Number(c.size) || 0, type: typeof c.type === 'string' ? c.type.slice(0, 40) : '' };
+  } catch (e) { return null; }
+}
+
+module.exports = { BLOB_URL, getClip, configured, redis, pipe, send, body, ipHash, clean, makeToken, tokenOk, passOk, getCfg, listItems, ADMIN };
