@@ -1340,9 +1340,10 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     requestAnimationFrame(frame);
   }
 
-  function setMode(m) {
+  function setMode(m, fromCfg) {
     if (!MODES.includes(m)) return false;
     mode = m; store.set('mode', m);
+    if (!fromCfg) store.set('modeAt', String(Date.now()));
     $('#bgName').textContent = m;
     initMode();
     addPulse(W / 2, H / 2);
@@ -1449,6 +1450,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     perf: () => ['low', 'high'],
     theme: () => Object.keys(THEMES),
     themeall: () => Object.keys(THEMES).concat('off'),
+    bgall: () => MODES.concat('off'),
     clip: () => ['url', 'title', 'rm'],
     bg: () => MODES,
     cat: () => Object.keys(FILES),
@@ -1600,7 +1602,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
        ['gb lock / unlock', 'stop / allow new notes'], ['announce <text>', 'banner on top of the site'], ['announce off', 'remove the banner'],
        ['clip', 'open player (drop a file to upload)'], ['clip title <text>', 'rename the clip'], ['clip rm yes', 'delete the clip'],
        ['clip url <blob url>', 'use a clip already in Blob'],
-       ['themeall <name>', 'set the theme for everyone'], ['themeall off', 'stop forcing a theme'],
+       ['themeall <name>', 'set the theme for everyone'], ['bgall <aurora|warp|flow>', 'set the background for everyone'], ['themeall off', 'stop forcing a theme'],
        ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
         .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
     },
@@ -1653,6 +1655,14 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
         const r = await adm('clip-set', { url, title: rest.join(' ') });
         if (r) { vid.removeAttribute('data-src'); setClip(r.clip); add('clip is live.', 'ok'); }
       } else add('unknown: clip ' + sub + "  (try 'admin')", 'err');
+    },
+    async bgall(a) {
+      if (!needAdmin()) return;
+      const n = (a[0] || '').toLowerCase();
+      if (!n) { add('usage: bgall <' + MODES.join('|') + '>  |  bgall off', 'err'); return; }
+      if (n !== 'off' && !MODES.includes(n)) { add('unknown background: ' + n + '  (' + MODES.join(', ') + ')', 'err'); return; }
+      const r = await adm('cfg', { bg: n === 'off' ? '' : n });
+      if (r) { applyCfg(r.cfg); add(n === 'off' ? 'background no longer forced.' : 'default background for everyone → ' + n, 'ok'); }
     },
     async themeall(a) {
       if (!needAdmin()) return;
@@ -1996,6 +2006,11 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     const bio = c && Array.isArray(c.bio) && c.bio.length ? c.bio.filter((x) => typeof x === 'string') : BIO0;
     CFG.bio.splice(0, CFG.bio.length, ...bio);
     gbLocked = !!(c && c.locked); updateGbLock();
+    // owner-set default background: same rule as the theme (a visitor's newer pick wins)
+    if (c && typeof c.bg === 'string' && MODES.includes(c.bg) && typeof setMode === 'function' && typeof mode === 'string') {
+      const mineBg = parseInt(store.get('modeAt') || '0', 10) || 0;
+      if ((+c.bgAt || 0) > mineBg && mode !== c.bg) setMode(c.bg, true);
+    }
     // owner-set default theme: wins over older personal choices, but a visitor's newer pick wins over it
     if (c && typeof c.theme === 'string' && Object.prototype.hasOwnProperty.call(THEMES, c.theme) && !party.on) {
       const mine = parseInt(store.get('themeAt') || '0', 10) || 0;
