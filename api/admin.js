@@ -110,6 +110,9 @@ module.exports = async (req, res) => {
 
     return L.send(res, 400, { error: 'unknown action' });
   } catch (e) {
+    // clip errors are only reachable with a valid admin token, so showing the reason is safe
+    const act = String((req.body && req.body.action) || '');
+    if (act.indexOf('clip-') === 0) return L.send(res, 502, { error: ('clip: ' + String((e && e.message) || e)).slice(0, 160) });
     return L.send(res, 502, { error: 'server error' });
   }
 };
