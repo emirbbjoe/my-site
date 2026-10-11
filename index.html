@@ -791,24 +791,25 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   }
 
   const THEMES = {
-    mint:  { a: [52, 226, 160],  b: [84, 168, 255],  g: [220, 224, 230], h: [125, 130, 140] },
-    ice:   { a: [138, 180, 255], b: [176, 132, 255], g: [64, 108, 230], h: [104, 78, 222] },
-    amber: { a: [255, 176, 72],  b: [255, 104, 84] },
-    rose:  { a: [255, 125, 160], b: [255, 176, 104] },
-    mono:  { a: [225, 228, 234], b: [132, 144, 160], g: [220, 224, 230], h: [125, 130, 140] },
-    violet: { a: [178, 132, 255], b: [255, 122, 214] },
-    crimson: { a: [255, 72, 96],  b: [255, 140, 90] },
-    ocean:  { a: [64, 196, 255],  b: [60, 120, 255] },
-    lime:   { a: [186, 255, 72],  b: [64, 230, 150] },
-    sunset: { a: [255, 138, 72],  b: [255, 72, 150] },
-    cyber:  { a: [0, 240, 255],   b: [255, 40, 200] },
-    gold:   { a: [255, 214, 90],  b: [255, 160, 60] },
-    // two-tone themes: everything (text, borders, glass, title) is tinted, only black + one color
-    redblack:    { a: [255, 28, 28], b: [190, 0, 18], g: [255, 40, 40], h: [150, 0, 12],
-                   ink: { fg: '255,84,84', soft: '214,56,56', muted: '140,36,36', line: '255,34,34', title: '#ff2626', pill: '255,30,30', danger: '#ff5a5a' } },
-    yellowblack: { a: [255, 222, 0], b: [226, 176, 0], g: [255, 224, 20], h: [170, 130, 0],
-                   ink: { fg: '255,228,64', soft: '214,186,36', muted: '140,120,18', line: '255,222,0', title: '#ffe000', pill: '255,222,0', danger: '#ffd23a' } }
+    mono: { a: [225, 228, 234], b: [132, 144, 160], g: [220, 224, 230], h: [125, 130, 140] }
   };
+  /* every color theme is two-tone: black + one dominant color. text, borders, glass, title and the canvas all take it */
+  function duo(name, base, hex) {
+    const mix = (c, w, k) => c.map((x) => Math.round(x + (w - x) * k)), sc = (c, k) => c.map((x) => Math.round(x * k));
+    const fg = mix(base, 255, 0.3), j = (c) => c.join(',');
+    THEMES[name] = { a: base, b: sc(base, 0.72), g: mix(base, 255, 0.06), h: sc(base, 0.58),
+      ink: { fg: j(fg), soft: j(sc(fg, 0.8)), muted: j(sc(fg, 0.52)), line: j(base), title: hex, pill: j(base), danger: 'rgb(' + j(fg) + ')' } };
+  }
+  THEMES.redblack = { a: [255, 28, 28], b: [190, 0, 18], g: [255, 40, 40], h: [150, 0, 12],
+    ink: { fg: '255,84,84', soft: '214,56,56', muted: '140,36,36', line: '255,34,34', title: '#ff2626', pill: '255,30,30', danger: '#ff5a5a' } };
+  THEMES.yellowblack = { a: [255, 222, 0], b: [226, 176, 0], g: [255, 224, 20], h: [170, 130, 0],
+    ink: { fg: '255,228,64', soft: '214,186,36', muted: '140,120,18', line: '255,222,0', title: '#ffe000', pill: '255,222,0', danger: '#ffd23a' } };
+  duo('blueblack', [36, 120, 255], '#2478ff');
+  duo('greenblack', [24, 230, 96], '#18e660');
+  duo('purpleblack', [166, 72, 255], '#a648ff');
+  duo('pinkblack', [255, 66, 170], '#ff42aa');
+  duo('orangeblack', [255, 124, 0], '#ff7c00');
+  duo('cyanblack', [0, 224, 255], '#00e0ff');
   function applyInk(ink) {
     const st = root.style;
     if (!ink) { ['--fg', '--soft', '--muted', '--line', '--pill', '--danger', '--ink'].forEach((k) => st.removeProperty(k)); root.classList.remove('duo'); return; }
@@ -1004,7 +1005,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     npTitle.textContent = String(d.song || '').slice(0, 200);
     npArtist.textContent = String(d.artist || '').replace(/;\s*/g, ', ').slice(0, 200);
     const art = typeof d.album_art_url === 'string' && d.album_art_url.indexOf('https://i.scdn.co/image/') === 0 ? d.album_art_url : '';
-    if (art) { if (npArt.getAttribute('src') !== art) { npArt.crossOrigin = 'anonymous'; npArt.src = art; } }
+    if (art) { if (npArt.getAttribute('src') !== art) { npArt.src = art; } }
     else { npArt.removeAttribute('src'); npEl.style.removeProperty('--c'); if (musicRGB) { musicRGB = ''; refreshColors(); } }
     if (/^[A-Za-z0-9]{10,30}$/.test(String(d.track_id || ''))) npTitle.href = 'https://open.spotify.com/track/' + d.track_id;
     else npTitle.removeAttribute('href');
@@ -1044,8 +1045,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     return rgbv.map((x) => Math.max(0, Math.min(255, Math.round(x * f)))).join(',');
   }
   npArt.addEventListener('load', () => {
-    try { const c = coverColor(npArt); npEl.style.setProperty('--c', c); musicRGB = c; }
-    catch (e) { npEl.style.removeProperty('--c'); musicRGB = ''; /* cover not readable: keep the normal theme */ }
+    /* the card (and the site) stay in the theme's colors; the cover no longer changes them */
+    npEl.style.removeProperty('--c'); musicRGB = '';
     refreshColors();
   });
   npArt.addEventListener('error', () => {
@@ -1623,7 +1624,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   const FILES = {
     'about.txt': () => CFG.bio,
     'links.txt': () => CFG.links.map((l) => l.id.padEnd(10) + ' ' + (safeUrl(l.url) || ('@' + (l.copy || '')))),
-    'readme.md': () => ['# ' + CFG.name, '', "type 'help' for commands.", "try 'bg warp', 'theme amber' or 'pulse'."]
+    'readme.md': () => ['# ' + CFG.name, '', "type 'help' for commands.", "try 'bg warp', 'theme redblack' or 'pulse'."]
   };
   const ARGS = {
     perf: () => ['low', 'high'],
@@ -1671,7 +1672,6 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['open <name>', 'open a link'],
     ['ls / cat <file>', 'browse files'],
     ['theme [name]', 'change accent color'],
-    ['musiccolors', 'on | off: site follows my music'],
     ['perf', 'low | high: graphics quality (low = default, easy on your PC)'],
     ['bg [mode]', 'aurora | warp | flow'],
     ['guestbook', 'read & sign the wall'],
@@ -1733,12 +1733,11 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     },
     musiccolors(a) {
       const v = (a[0] || '').toLowerCase();
-      if (v === 'on' || v === 'off') { musicOn = v === 'on'; store.set('mc', musicOn ? '1' : '0'); refreshColors(); }
-      add('music colors: ' + (musicOn ? 'on' : 'off') + (a[0] ? '' : "  (use 'musiccolors on' or 'off')"), 'ok');
+      add('music colors are retired: the player and the site stay in your theme.', 'dim');
     },
     theme(a) {
       if (!a[0]) { add('themes: ' + Object.keys(THEMES).join(', ') + '  (current: ' + themeName + ')'); return; }
-      if (setTheme(a[0].toLowerCase())) { store.set('themeAt', String(Date.now())); add('theme → ' + themeName, 'ok'); if (musicRGB && musicOn) add("(colors follow the music while it plays. 'musiccolors off' to stop that)", 'dim'); }
+      if (setTheme(a[0].toLowerCase())) { store.set('themeAt', String(Date.now())); add('theme → ' + themeName, 'ok'); }
       else add('unknown theme: ' + a[0], 'err');
     },
     bg(a) {
@@ -1823,10 +1822,10 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       jvPending = [];
       if (/^(help|what can you do|\?|commands|examples?)$/.test(low)) {
         add('jarvis: just say it. i understand things like:', 'ok');
-        ['put a banner saying new clip tonight', 'remove the banner', 'make the site cyber for everyone', 'background warp for everyone', 'lock the guestbook', 'delete all notes',
+        ['put a banner saying new clip tonight', 'remove the banner', 'make the site blue for everyone', 'background warp for everyone', 'lock the guestbook', 'delete all notes',
          'rename the clip to insane 1v4', 'change my bio to gamer | builder | night owl', 'the site is laggy', 'colors follow my music', 'party', 'status']
           .forEach((x) => add('  jarvis ' + x, 'dim'));
-        add('you can chain things: "warp background and amber theme and lock the guestbook"', 'dim');
+        add('you can chain things: "warp background and red theme and lock the guestbook"', 'dim');
         return;
       }
       const r = jvParse(raw);
@@ -1956,10 +1955,10 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   const jvRisky = (c) => /^gb\s+(clear|rm|del)\b/i.test(c) || /^clip\s+(rm|del)\b/i.test(c);
   let jvPending = [];
   /* jarvis brain: no AI, no key. it reads your sentence, finds what you want and turns it into terminal commands */
-  const JV_COLORS = { red: 'crimson', blue: 'ocean', green: 'lime', purple: 'violet', pink: 'rose', orange: 'sunset', yellow: 'gold', white: 'mono', black: 'mono', gray: 'mono', grey: 'mono', cyan: 'cyber', teal: 'mint', neon: 'cyber', default: 'mono' };
+  const JV_COLORS = { red: 'redblack', blue: 'blueblack', green: 'greenblack', purple: 'purpleblack', pink: 'pinkblack', orange: 'orangeblack', yellow: 'yellowblack', white: 'mono', black: 'mono', gray: 'mono', grey: 'mono', cyan: 'cyanblack', teal: 'cyanblack', neon: 'greenblack', default: 'mono' };
   const JV_BG = { aurora: 'aurora', northern: 'aurora', warp: 'warp', stars: 'warp', hyperspace: 'warp', space: 'warp', flow: 'flow', lines: 'flow', matrix: 'matrix', code: 'matrix', net: 'net', network: 'net', constellation: 'net', rain: 'rain', fireflies: 'fireflies', firefly: 'fireflies', grid: 'grid', synthwave: 'grid', retro: 'grid', snow: 'snow', waves: 'waves', wave: 'waves' };
   function jvParse(input) {
-    let t = ' ' + input.trim().replace(/\bred\s*(?:and\s+|&\s*|\/\s*|n\s+)?black\b/gi, 'redblack').replace(/\byellow\s*(?:and\s+|&\s*|\/\s*|n\s+)?black\b/gi, 'yellowblack') + ' ';
+    let t = ' ' + input.trim().replace(/\b(red|yellow|blue|green|purple|pink|orange|cyan)\s*(?:and\s+|&\s*|\/\s*|n\s+)?black\b/gi, '$1black') + ' ';
     const cmdsOut = [], notes = [];
     const push = (c, n) => { if (!cmdsOut.includes(c)) { cmdsOut.push(c); if (n) notes.push(n); } };
     const q = t.match(/["“”']([^"“”']{1,120})["“”']/);
@@ -2062,7 +2061,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   function boot() {
     booted = true;
     add('identity-shell 1.0 — ' + CFG.handle, 'ok');
-    add("type 'help' for commands. try 'bg warp' or 'theme amber'.", 'dim');
+    add("type 'help' for commands. try 'bg warp' or 'theme redblack'.", 'dim');
   }
   function openTerm() {
     term.hidden = false;
