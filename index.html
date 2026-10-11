@@ -566,6 +566,9 @@ body.has-ann .stage { padding-top: 78px; }
 @keyframes bflick { 50% { opacity: .55; } }
 @keyframes bootFail { to { opacity: 0; visibility: hidden; pointer-events: none; } }
 /* performance (lite) mode: no glass blur, calmer canvas — on when the window is in the background or the PC struggles */
+html.duo .title { color: var(--ink); text-shadow: 0 0 40px var(--ink), 0 0 90px rgba(var(--accent-rgb), .35); }
+html.duo .open { color: var(--ink); border-color: rgba(var(--accent-rgb), .8); box-shadow: var(--lift), 0 0 28px -6px rgba(var(--accent-rgb), .8); }
+html.duo ::selection { color: #000; background: rgb(var(--accent-rgb)); }
 html.lite *, html.lite *::before, html.lite *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.lite #rave { display: none; }
 html.lite body.rave .title { animation: none; }
@@ -799,9 +802,22 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     lime:   { a: [186, 255, 72],  b: [64, 230, 150] },
     sunset: { a: [255, 138, 72],  b: [255, 72, 150] },
     cyber:  { a: [0, 240, 255],   b: [255, 40, 200] },
-    gold:   { a: [255, 214, 90],  b: [255, 160, 60] }
+    gold:   { a: [255, 214, 90],  b: [255, 160, 60] },
+    // two-tone themes: everything (text, borders, glass, title) is tinted, only black + one color
+    redblack:    { a: [255, 28, 28], b: [190, 0, 18], g: [255, 40, 40], h: [150, 0, 12],
+                   ink: { fg: '255,84,84', soft: '214,56,56', muted: '140,36,36', line: '255,34,34', title: '#ff2626', pill: '255,30,30', danger: '#ff5a5a' } },
+    yellowblack: { a: [255, 222, 0], b: [226, 176, 0], g: [255, 224, 20], h: [170, 130, 0],
+                   ink: { fg: '255,228,64', soft: '214,186,36', muted: '140,120,18', line: '255,222,0', title: '#ffe000', pill: '255,222,0', danger: '#ffd23a' } }
   };
-  const MODES = ['aurora', 'warp', 'flow'];
+  function applyInk(ink) {
+    const st = root.style;
+    if (!ink) { ['--fg', '--soft', '--muted', '--line', '--pill', '--danger', '--ink'].forEach((k) => st.removeProperty(k)); root.classList.remove('duo'); return; }
+    st.setProperty('--fg', 'rgb(' + ink.fg + ')'); st.setProperty('--soft', 'rgb(' + ink.soft + ')'); st.setProperty('--muted', 'rgb(' + ink.muted + ')');
+    st.setProperty('--line', 'rgba(' + ink.line + ', .24)'); st.setProperty('--danger', ink.danger); st.setProperty('--ink', ink.title);
+    st.setProperty('--pill', 'linear-gradient(180deg, rgba(' + ink.pill + ', .075), rgba(' + ink.pill + ', .02)), rgba(10, 0, 0, .8)');
+    root.classList.add('duo');
+  }
+  const MODES = ['aurora', 'warp', 'flow', 'matrix', 'net', 'rain', 'fireflies', 'grid', 'snow', 'waves'];
   let themeName = 'mono';
   let rgb = THEMES.mono.g.join(',');
   let rgb2 = THEMES.mono.h.join(',');
@@ -828,8 +844,9 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   }
   function refreshColors() {
     if (raveActive) return;
-    if (musicRGB && musicOn) { paint(musicRGB, musicRGB, shiftRGB(musicRGB)); return; }
+    if (musicRGB && musicOn) { applyInk(null); paint(musicRGB, musicRGB, shiftRGB(musicRGB)); return; }
     const th = THEMES[themeName];
+    applyInk(th.ink || null);
     paint(th.a.join(','), (th.g || th.a).join(','), (th.h || th.b).join(','));
   }
   function setTheme(name) {
@@ -1147,11 +1164,179 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     } else if (mode === 'warp') {
       const n = Math.round(Math.min(420, Math.max(150, (W * H) / 5500)) * (isLite ? 0.5 : 1));
       stars = Array.from({ length: n }, () => newStar(true));
-    } else {
+    } else if (mode === 'flow') {
       const n = Math.round(Math.min(700, Math.max(240, (W * H) / 2600)) * (isLite ? 0.4 : 1));
       flow = Array.from({ length: n }, newFlow);
+    } else initMore();
+  }
+
+  /* ---------- more backgrounds: matrix, net, rain, fireflies, grid, snow, waves ---------- */
+  let P = [], gridOff = 0;
+  const MG = '\uff71\uff72\uff73\uff74\uff75\uff76\uff77\uff78\uff79\uff7a\uff7b\uff7c\uff7d\uff7e\uff7f\uff80\uff81\uff82\uff83\uff85\uff86\uff87\uff88\uff89' + '0123456789ABCDEFZ';
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function initMore() {
+    const L = isLite ? 0.55 : 1;
+    if (mode === 'matrix') {
+      const n = Math.ceil(W / 16);
+      P = Array.from({ length: n }, (_, i) => ({ x: i * 16, y: rnd(-H, H), sp: rnd(70, 190), row: -1, ch: '0' }));
+    } else if (mode === 'net') {
+      const n = Math.round(Math.min(110, Math.max(36, (W * H) / 16000)) * L);
+      P = Array.from({ length: n }, () => ({ x: rnd(0, W), y: rnd(0, H), vx: rnd(-14, 14), vy: rnd(-14, 14), c: Math.random() < 0.35 ? 1 : 0 }));
+    } else if (mode === 'rain') {
+      const n = Math.round(Math.min(260, Math.max(90, W / 5)) * L);
+      P = Array.from({ length: n }, () => ({ x: rnd(-100, W + 100), y: rnd(0, H), v: rnd(520, 1040), l: rnd(10, 32), c: Math.random() < 0.3 ? 1 : 0 }));
+    } else if (mode === 'fireflies') {
+      const n = Math.round(Math.min(70, Math.max(26, (W * H) / 30000)) * L);
+      P = Array.from({ length: n }, () => ({ x: rnd(0, W), y: rnd(0, H), ph: rnd(0, 6.28), sp: rnd(0.15, 0.45), r: rnd(16, 42), c: Math.random() < 0.4 ? 1 : 0, ang: rnd(0, 6.28) }));
+    } else if (mode === 'snow') {
+      const n = Math.round(Math.min(220, Math.max(70, (W * H) / 9000)) * L);
+      P = Array.from({ length: n }, () => ({ x: rnd(0, W), y: rnd(0, H), r: rnd(0.8, 3), v: rnd(18, 68), ph: rnd(0, 6.28), c: Math.random() < 0.2 ? 1 : 0 }));
+    } else P = [];
+  }
+  function drawRings() {
+    ctx.lineWidth = 1.4;
+    for (const pl of pulses) {
+      ctx.strokeStyle = 'rgba(' + rgb2 + ',' + ((1 - pl.age / 1.6) * 0.5).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(pl.x, pl.y, pl.age * 460, 0, 6.2832); ctx.stroke();
     }
   }
+  function drawMatrix(dt) {
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.5, 0.075 * dt * 60).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.font = '14px ui-monospace, Consolas, monospace'; ctx.textBaseline = 'top';
+    const boost = 1 + pulses.length * 0.7, duo = root.classList.contains('duo');
+    for (const c of P) {
+      c.y += c.sp * boost * dt * S;
+      const row = Math.floor(c.y / 16);
+      if (row !== c.row) {
+        if (c.row >= 0) { ctx.fillStyle = 'rgba(' + rgb + ',.9)'; ctx.fillText(c.ch, c.x, c.row * 16); }
+        c.ch = MG[(Math.random() * MG.length) | 0]; c.row = row;
+        ctx.fillStyle = duo ? 'rgb(' + rgb + ')' : 'rgba(255,255,255,.95)'; ctx.fillText(c.ch, c.x, row * 16);
+      }
+      if (c.y > H + 30) { c.y = rnd(-H * 0.6, -10); c.sp = rnd(70, 190); c.row = -1; }
+    }
+    drawRings();
+  }
+  function drawNet(dt) {
+    ctx.clearRect(0, 0, W, H);
+    const maxD = Math.min(170, Math.max(W, H) * 0.14), md2 = maxD * maxD, k = dt * S;
+    for (const p of P) {
+      p.x += p.vx * k; p.y += p.vy * k;
+      if (p.x < 0 || p.x > W) p.vx *= -1;
+      if (p.y < 0 || p.y > H) p.vy *= -1;
+      if (mouse.on) { const dx = mouse.sx - p.x, dy = mouse.sy - p.y, d = Math.hypot(dx, dy); if (d < 220 && d > 1) { p.x += (dx / d) * 18 * k; p.y += (dy / d) * 18 * k; } }
+    }
+    ctx.lineWidth = 1;
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i];
+      for (let j = i + 1; j < P.length; j++) {
+        const b = P[j], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+        if (d2 < md2) {
+          ctx.strokeStyle = 'rgba(' + rgb + ',' + ((1 - Math.sqrt(d2) / maxD) * 0.38).toFixed(2) + ')';
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+      if (mouse.on) {
+        const dx = a.x - mouse.sx, dy = a.y - mouse.sy, d = Math.hypot(dx, dy);
+        if (d < 200) { ctx.strokeStyle = 'rgba(' + rgb2 + ',' + ((1 - d / 200) * 0.5).toFixed(2) + ')'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.sx, mouse.sy); ctx.stroke(); }
+      }
+    }
+    for (const p of P) { ctx.fillStyle = 'rgba(' + (p.c ? rgb2 : rgb) + ',.85)'; ctx.beginPath(); ctx.arc(p.x, p.y, 1.8, 0, 6.2832); ctx.fill(); }
+    drawRings();
+  }
+  function drawRain(dt) {
+    ctx.clearRect(0, 0, W, H);
+    const wind = mouse.on ? (mouse.sx / W - 0.5) * 220 : 50;
+    const paths = [new Path2D(), new Path2D()];
+    ctx.lineWidth = 1.1; ctx.lineCap = 'round';
+    for (const p of P) {
+      p.y += p.v * dt * S; p.x += wind * dt * S;
+      if (p.y > H + 10) { p.y = -p.l; p.x = rnd(-100, W + 100); }
+      if (p.x > W + 100) p.x = -100; else if (p.x < -100) p.x = W + 100;
+      const q = paths[p.c]; q.moveTo(p.x, p.y); q.lineTo(p.x - wind * 0.025, p.y - p.l);
+    }
+    ctx.strokeStyle = 'rgba(' + rgb + ',.4)'; ctx.stroke(paths[0]);
+    ctx.strokeStyle = 'rgba(' + rgb2 + ',.32)'; ctx.stroke(paths[1]);
+    drawRings();
+  }
+  function drawFireflies(dt) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    const k = dt * S;
+    for (const p of P) {
+      p.ang += Math.sin(t * p.sp * S + p.ph) * 1.4 * k;
+      p.x += Math.cos(p.ang) * 24 * k; p.y += Math.sin(p.ang) * 24 * k;
+      if (mouse.on) { const dx = p.x - mouse.sx, dy = p.y - mouse.sy, d = Math.hypot(dx, dy); if (d < 140 && d > 1) { p.x += (dx / d) * 60 * k; p.y += (dy / d) * 60 * k; } }
+      if (p.x < -50) p.x = W + 50; else if (p.x > W + 50) p.x = -50;
+      if (p.y < -50) p.y = H + 50; else if (p.y > H + 50) p.y = -50;
+      const a = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * p.sp * 3 * S + p.ph)), col = p.c ? rgb2 : rgb;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+      g.addColorStop(0, 'rgba(' + col + ',' + (0.6 * a).toFixed(2) + ')');
+      g.addColorStop(0.25, 'rgba(' + col + ',' + (0.16 * a).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(' + col + ',0)');
+      ctx.fillStyle = g; ctx.fillRect(p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+      ctx.fillStyle = 'rgba(255,255,255,' + (0.7 * a).toFixed(2) + ')'; ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    drawRings();
+  }
+  function drawGrid(dt) {
+    ctx.clearRect(0, 0, W, H);
+    const hz = H * 0.56, vx = W / 2 + (mouse.on ? (mouse.sx - W / 2) * 0.15 : 0);
+    gridOff = (gridOff + dt * S * (0.28 + pulses.length * 0.5)) % 1;
+    const sr = Math.min(W, H) * 0.24;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, hz); ctx.clip();
+    const sg = ctx.createRadialGradient(vx, hz, 0, vx, hz, sr);
+    sg.addColorStop(0, 'rgba(' + rgb2 + ',.55)'); sg.addColorStop(0.6, 'rgba(' + rgb2 + ',.16)'); sg.addColorStop(1, 'rgba(' + rgb2 + ',0)');
+    ctx.fillStyle = sg; ctx.fillRect(vx - sr, hz - sr, sr * 2, sr);
+    ctx.restore();
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i < 16; i++) {
+      const z = (i + gridOff) / 16, y = hz + (H - hz) * z * z;
+      ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.08 + z * 0.5).toFixed(2) + ')';
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(' + rgb + ',.3)'; ctx.beginPath();
+    for (let i = -14; i <= 14; i++) { ctx.moveTo(vx + i * W * 0.012, hz); ctx.lineTo(vx + i * W * 0.17, H + 10); }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(' + rgb2 + ',.5)'; ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
+    drawRings();
+  }
+  function drawSnow(dt) {
+    ctx.clearRect(0, 0, W, H);
+    const k = dt * S, wind = mouse.on ? (mouse.sx / W - 0.5) * 60 : 6;
+    const paths = [new Path2D(), new Path2D()];
+    for (const p of P) {
+      p.y += p.v * k; p.x += (Math.sin(t * 0.8 * S + p.ph) * 16 + wind) * k;
+      if (mouse.on) { const dx = p.x - mouse.sx, dy = p.y - mouse.sy, d = Math.hypot(dx, dy); if (d < 110 && d > 1) { p.x += (dx / d) * 90 * k; p.y += (dy / d) * 90 * k; } }
+      if (p.y > H + 6) { p.y = -6; p.x = rnd(0, W); }
+      if (p.x > W + 6) p.x = -6; else if (p.x < -6) p.x = W + 6;
+      const q = paths[p.c]; q.moveTo(p.x + p.r, p.y); q.arc(p.x, p.y, p.r, 0, 6.2832);
+    }
+    ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fill(paths[0]);
+    ctx.fillStyle = 'rgba(' + rgb + ',.7)'; ctx.fill(paths[1]);
+    drawRings();
+  }
+  function drawWaves(dt) {
+    ctx.clearRect(0, 0, W, H);
+    const step = isLite ? 22 : 12;
+    for (let i = 0; i < 5; i++) {
+      const base = H * (0.52 + i * 0.1), amp = 14 + i * 7, f = 0.004 - i * 0.0004, sp = (0.5 + i * 0.18) * S, col = i % 2 ? rgb2 : rgb;
+      ctx.beginPath(); ctx.moveTo(0, H);
+      for (let x = 0; x <= W + step; x += step) {
+        let y = base + Math.sin(x * f + t * sp + i) * amp + Math.sin(x * f * 2.3 - t * sp * 0.7) * amp * 0.4;
+        if (mouse.on) { const d = (x - mouse.sx) / 160; y -= Math.exp(-d * d) * 38 * (i + 1) / 5; }
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H); ctx.closePath();
+      ctx.fillStyle = 'rgba(' + col + ',' + (0.045 + i * 0.016).toFixed(3) + ')'; ctx.fill();
+      ctx.strokeStyle = 'rgba(' + col + ',' + (0.22 + i * 0.04).toFixed(2) + ')'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    drawRings();
+  }
+  const DRAW_MORE = { matrix: drawMatrix, net: drawNet, rain: drawRain, fireflies: drawFireflies, grid: drawGrid, snow: drawSnow, waves: drawWaves };
 
   function resize() {
     const nw = innerWidth, nh = innerHeight;
@@ -1329,7 +1514,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     stepPulses(dt);
     if (mode === 'aurora') drawAurora(dt);
     else if (mode === 'warp') drawWarp(dt);
-    else drawFlow(dt);
+    else if (mode === 'flow') drawFlow(dt);
+    else if (DRAW_MORE[mode]) DRAW_MORE[mode](dt);
     requestAnimationFrame(frame);
   }
 
@@ -1597,7 +1783,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
        ['gb lock / unlock', 'stop / allow new notes'], ['announce <text>', 'banner on top of the site'], ['announce off', 'remove the banner'],
        ['clip', 'open player (drop a file to upload)'], ['clip title <text>', 'rename the clip'], ['clip rm yes', 'delete the clip'],
        ['clip url <blob url>', 'use a clip already in Blob'],
-       ['themeall <name>', 'set the theme for everyone'], ['bgall <aurora|warp|flow>', 'set the background for everyone'], ['themeall off', 'stop forcing a theme'],
+       ['themeall <name>', 'set the theme for everyone'], ['bgall <name>', 'set the background for everyone (bg lists them)'], ['themeall off', 'stop forcing a theme'],
        ['jarvis <anything>', 'plain words → commands (aliases: j, ai)'], ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
         .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
     },
@@ -1771,9 +1957,9 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   let jvPending = [];
   /* jarvis brain: no AI, no key. it reads your sentence, finds what you want and turns it into terminal commands */
   const JV_COLORS = { red: 'crimson', blue: 'ocean', green: 'lime', purple: 'violet', pink: 'rose', orange: 'sunset', yellow: 'gold', white: 'mono', black: 'mono', gray: 'mono', grey: 'mono', cyan: 'cyber', teal: 'mint', neon: 'cyber', default: 'mono' };
-  const JV_BG = { aurora: 'aurora', northern: 'aurora', warp: 'warp', stars: 'warp', hyperspace: 'warp', space: 'warp', flow: 'flow', lines: 'flow', waves: 'flow' };
+  const JV_BG = { aurora: 'aurora', northern: 'aurora', warp: 'warp', stars: 'warp', hyperspace: 'warp', space: 'warp', flow: 'flow', lines: 'flow', matrix: 'matrix', code: 'matrix', net: 'net', network: 'net', constellation: 'net', rain: 'rain', fireflies: 'fireflies', firefly: 'fireflies', grid: 'grid', synthwave: 'grid', retro: 'grid', snow: 'snow', waves: 'waves', wave: 'waves' };
   function jvParse(input) {
-    let t = ' ' + input.trim() + ' ';
+    let t = ' ' + input.trim().replace(/\bred\s*(?:and\s+|&\s*|\/\s*|n\s+)?black\b/gi, 'redblack').replace(/\byellow\s*(?:and\s+|&\s*|\/\s*|n\s+)?black\b/gi, 'yellowblack') + ' ';
     const cmdsOut = [], notes = [];
     const push = (c, n) => { if (!cmdsOut.includes(c)) { cmdsOut.push(c); if (n) notes.push(n); } };
     const q = t.match(/["“”']([^"“”']{1,120})["“”']/);
@@ -2457,7 +2643,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     party.sched = setInterval(tick, 80); tick();
   }
   function partyOn() {
-    party.on = true; raveActive = true;
+    party.on = true; raveActive = true; applyInk(null);
     document.body.classList.add('rave');
     partyBtn.setAttribute('aria-pressed', 'true'); partyTxt.textContent = '■ stop';
     let fell = false;
