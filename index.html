@@ -565,6 +565,11 @@ body.has-ann .stage { padding-top: 78px; }
 @keyframes bblink { 50% { opacity: 0; } }
 @keyframes bflick { 50% { opacity: .55; } }
 @keyframes bootFail { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+/* performance (lite) mode: no glass blur, calmer canvas — on when the window is in the background or the PC struggles */
+html.lite *, html.lite *::before, html.lite *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html.lite #rave { display: none; }
+html.lite body.rave .title { animation: none; }
+html.lite .pill { background-color: rgba(18, 20, 26, .86); }
 /* party mode */
 .party { position: fixed; top: 14px; right: 14px; z-index: 15; }
 .party[aria-pressed="true"] { color: #fff; border-color: rgba(var(--accent-rgb), .8); box-shadow: var(--lift), 0 0 26px -2px rgba(var(--accent-rgb), .8); }
@@ -1083,8 +1088,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     setDot('discord', 'online'); setDot('steam', 'idle');
   } else if (/^\d{15,25}$/.test(DISCORD_ID)) {
     pollNP(); pollSteam();
-    setInterval(pollNP, 10000);
-    setInterval(pollSteam, 30000);
+    setInterval(() => { if (!document.hidden) pollNP(); }, 10000);
+    setInterval(() => { if (!document.hidden) pollSteam(); }, 30000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) { pollNP(); pollSteam(); } });
   }
   setInterval(() => {
@@ -1137,27 +1142,27 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ctx.clearRect(0, 0, W, H);
     trail.length = 0;
     if (mode === 'aurora') {
-      blobs = Array.from({ length: 7 }, (_, i) => ({
+      blobs = Array.from({ length: isLite ? 4 : 7 }, (_, i) => ({
         ph: Math.random() * 6.28, sp: 0.07 + Math.random() * 0.1,
         ax: 0.18 + Math.random() * 0.22, ay: 0.14 + Math.random() * 0.2,
         cx: 0.15 + Math.random() * 0.7, cy: 0.15 + Math.random() * 0.7,
         r: 0.2 + Math.random() * 0.18,
         x: W * Math.random(), y: H * Math.random(), vx: 0, vy: 0, c: i % 2
       }));
-      const nd = Math.round(Math.min(160, Math.max(50, (W * H) / 12000)));
+      const nd = Math.round(Math.min(160, Math.max(50, (W * H) / 12000)) * (isLite ? 0.45 : 1));
       dust = Array.from({ length: nd }, () => ({ x: Math.random() * W, y: Math.random() * H, z: 0.2 + Math.random() * 0.8, ph: Math.random() * 6.28 }));
     } else if (mode === 'warp') {
-      const n = Math.round(Math.min(420, Math.max(150, (W * H) / 5500)));
+      const n = Math.round(Math.min(420, Math.max(150, (W * H) / 5500)) * (isLite ? 0.5 : 1));
       stars = Array.from({ length: n }, () => newStar(true));
     } else {
-      const n = Math.round(Math.min(700, Math.max(240, (W * H) / 2600)));
+      const n = Math.round(Math.min(700, Math.max(240, (W * H) / 2600)) * (isLite ? 0.4 : 1));
       flow = Array.from({ length: n }, newFlow);
     }
   }
 
   function resize() {
     const nw = innerWidth, nh = innerHeight;
-    DPR = Math.min(devicePixelRatio || 1, 1.5);
+    DPR = isLite ? 1 : Math.min(devicePixelRatio || 1, 1.5);
     const changed = nw !== W || Math.abs(nh - H) > 150;
     W = nw; H = nh;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
@@ -1303,9 +1308,26 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ctx.strokeStyle = 'rgba(' + rgb2 + ',.4)'; ctx.stroke(paths[1]);
   }
 
-  let last = performance.now();
+  /* lite mode: 24 fps, 1x resolution, no blur. auto when the tab loses focus (you're in a game) or when frames get slow */
+  let perfHigh = store.get('perf') === 'high', winBlur = false, slowRun = 0, autoLite = false, isLite = false;
+  function syncLite() {
+    const on = !perfHigh || winBlur || autoLite;
+    if (on === isLite) return;
+    isLite = on; root.classList.toggle('lite', on);
+    if (cv.width) { resize(); initMode(); }
+  }
+  addEventListener('blur', () => { winBlur = true; syncLite(); });
+  addEventListener('focus', () => { winBlur = false; last = performance.now(); syncLite(); });
+  if (document.hasFocus && !document.hasFocus()) { winBlur = true; }
+  let last = performance.now(), lastDraw = 0;
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000);
+    if (document.hidden) { requestAnimationFrame(frame); last = now; return; }
+    const gap = isLite ? 30 : 0;
+    if (gap && now - lastDraw < gap) { requestAnimationFrame(frame); return; }
+    lastDraw = now;
+    const rawDt = (now - last) / 1000;
+    if (!isLite && !autoLite && rawDt > 0.026 && rawDt < 0.5) { if (++slowRun > 45) { autoLite = true; syncLite(); } } else if (rawDt <= 0.026) { slowRun = Math.max(0, slowRun - 2); }
+    const dt = Math.min(0.1, rawDt);
     last = now; t += dt;
     if (mouse.on) {
       const e = Math.min(1, dt * 10);
@@ -1342,6 +1364,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   $('#bgName').textContent = mode;
   let rz;
   addEventListener('resize', () => { cancelAnimationFrame(rz); rz = requestAnimationFrame(resize); });
+  syncLite();
   resize();
   requestAnimationFrame(frame);
 
@@ -1423,6 +1446,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     'readme.md': () => ['# ' + CFG.name, '', "type 'help' for commands.", "try 'bg warp', 'theme amber' or 'pulse'."]
   };
   const ARGS = {
+    perf: () => ['low', 'high'],
     theme: () => Object.keys(THEMES),
     themeall: () => Object.keys(THEMES).concat('off'),
     clip: () => ['url', 'title', 'rm'],
@@ -1466,6 +1490,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['ls / cat <file>', 'browse files'],
     ['theme [name]', 'change accent color'],
     ['musiccolors', 'on | off: site follows my music'],
+    ['perf', 'low | high: graphics quality (low = default, easy on your PC)'],
     ['bg [mode]', 'aurora | warp | flow'],
     ['guestbook', 'read & sign the wall'],
     ['clip', 'watch the clip of the day'],
@@ -1516,6 +1541,12 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       const key = a[0].toLowerCase();
       if (!Object.prototype.hasOwnProperty.call(FILES, key)) { add('cat: ' + a[0] + ': no such file', 'err'); return; }
       FILES[key]().forEach((l) => add(l));
+    },
+    perf(a) {
+      const v = (a[0] || '').toLowerCase();
+      if (v === 'high') { perfHigh = true; autoLite = false; slowRun = 0; store.set('perf', 'high'); syncLite(); }
+      else if (v === 'low') { perfHigh = false; store.set('perf', 'low'); syncLite(); }
+      add('graphics: ' + (perfHigh ? 'high (glass blur, smooth 60fps; drops to light if it lags)' : 'light (default, easy on your PC)') + (a[0] ? '' : "  (use 'perf high' or 'perf low')"), 'ok');
     },
     musiccolors(a) {
       const v = (a[0] || '').toLowerCase();
