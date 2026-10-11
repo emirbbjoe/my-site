@@ -379,11 +379,32 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
 /* guestbook + announcement */
 .ann {
-  position: fixed; top: 14px; left: 14px; z-index: 15;
-  max-width: calc(100% - 150px); white-space: normal; text-align: left;
-  border-radius: 18px; letter-spacing: .06em; line-height: 1.45; color: var(--soft);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 15; height: 32px;
+  overflow: hidden; display: flex; align-items: center;
+  background: #030303; border-bottom: 1px solid rgba(var(--accent-rgb), .35);
+  box-shadow: 0 6px 26px -10px rgba(var(--accent-rgb), .55);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
 }
 .ann[hidden] { display: none; }
+.ann::after { /* LED dot grid */
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at center, transparent 0 48%, rgba(0, 0, 0, .5) 54%) 0 0 / 3px 3px;
+}
+.ann-track {
+  display: inline-flex; white-space: nowrap; will-change: transform;
+  animation: annSlide var(--dur, 20s) linear infinite;
+}
+.ann:hover .ann-track { animation-play-state: paused; }
+.ann-g {
+  white-space: pre; font-size: 13px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase;
+  color: rgb(var(--accent-rgb)); text-shadow: 0 0 8px rgba(var(--accent-rgb), .9), 0 0 2px rgba(var(--accent-rgb), .9);
+}
+@keyframes annSlide { to { transform: translateX(-50%); } }
+body.has-ann .party { top: 46px; }
+body.has-ann .stage { padding-top: 78px; }
+@media (max-width: 600px) { body.has-ann .party { top: 40px; } }
+@media (prefers-reduced-motion: reduce) { .ann-track { animation: none; } }
 .gb {
   position: fixed; inset: 0; margin: auto; z-index: 25;
   width: min(480px, calc(100% - 28px));
@@ -493,7 +514,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
 <div class="glow" aria-hidden="true"></div>
 <canvas id="bg" aria-hidden="true"></canvas>
 <div id="rave" aria-hidden="true"></div>
-<div class="pill sm ann" id="ann" hidden></div>
+<div class="ann" id="ann" role="status" hidden><div class="ann-track" id="annTrack" aria-hidden="true"></div></div>
 <button class="pill sm party" id="partyBtn" type="button" aria-pressed="false" aria-label="Toggle party mode"><span id="partyTxt">&#10022; party</span></button>
 
 <main class="stage">
@@ -1731,9 +1752,26 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     } catch (err) { gbSay(err.status === 0 || err.status === 503 ? 'guestbook is offline right now.' : err.message); }
     gbBusy = false; gbSend.disabled = gbLocked;
   });
+  /* LED-style sliding announcement bar */
+  let annText = '';
+  function setTicker(text) {
+    annText = text || '';
+    const el = $('#ann'), tr = $('#annTrack');
+    tr.textContent = '';
+    if (!annText) { el.hidden = true; el.removeAttribute('aria-label'); document.body.classList.remove('has-ann'); return; }
+    el.hidden = false; el.setAttribute('aria-label', annText); document.body.classList.add('has-ann');
+    const unit = annText + '      \u2726      ';
+    const g1 = document.createElement('span'); g1.className = 'ann-g'; g1.textContent = unit;
+    tr.appendChild(g1);
+    let n = 1;
+    while (g1.offsetWidth < Math.max(window.innerWidth, 400) && n < 60) { g1.textContent += unit; n++; }
+    tr.appendChild(g1.cloneNode(true));
+    tr.style.setProperty('--dur', Math.max(8, g1.offsetWidth / 70).toFixed(1) + 's');
+  }
+  let annRz = 0;
+  addEventListener('resize', () => { clearTimeout(annRz); annRz = setTimeout(() => { if (annText) setTicker(annText); }, 250); });
   function applyCfg(c) {
-    const ann = $('#ann');
-    if (c && typeof c.announce === 'string' && c.announce) { ann.textContent = c.announce; ann.hidden = false; } else { ann.textContent = ''; ann.hidden = true; }
+    setTicker(c && typeof c.announce === 'string' ? c.announce : '');
     const bio = c && Array.isArray(c.bio) && c.bio.length ? c.bio.filter((x) => typeof x === 'string') : BIO0;
     CFG.bio.splice(0, CFG.bio.length, ...bio);
     gbLocked = !!(c && c.locked); updateGbLock();
