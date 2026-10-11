@@ -1,0 +1,8 @@
+{
+  "name": "emirbbjoe-site",
+  "private": true,
+  "description": "Static site + small serverless functions (guestbook, admin, clip upload)",
+  "dependencies": {
+    "@vercel/blob": "latest"
+  }
+}

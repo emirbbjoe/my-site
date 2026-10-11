@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; media-src 'self'; connect-src 'self' https://api.lanyard.rest; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data: https://i.scdn.co; media-src 'self' https://*.vercel-storage.com; connect-src 'self' https://api.lanyard.rest https://*.vercel-storage.com https://vercel.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
@@ -377,6 +377,95 @@ a.np-title[href]:hover { color: var(--accent); text-decoration: underline; text-
   .fields > div { padding-inline: 16px; }
 }
 @media (max-width: 350px) { .meta .coord, .meta .s2 { display: none; } }
+/* clip of the day + video player */
+.clip {
+  position: fixed; inset: 0; margin: auto; z-index: 26;
+  width: min(920px, calc(100% - 24px)); height: fit-content; max-height: calc(100% - 28px);
+  display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0)), rgba(7, 9, 12, .95);
+  -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border: 1px solid var(--line); border-radius: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 40px 90px -24px rgba(0, 0, 0, .9), 0 0 60px -20px rgba(var(--accent-rgb), .35);
+  animation: pop .35s var(--spring); scrollbar-width: thin;
+}
+.clip[hidden] { display: none; }
+.clip-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.clip-h .pill { background: rgba(255, 255, 255, .035); box-shadow: none; color: var(--soft); }
+.clip-h .x { margin-left: auto; }
+.clip-t { padding-inline: 6px; color: var(--fg); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.clip-t small { display: block; color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 2px; }
+.clip-empty { padding: 36px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 20px; }
+.clip-empty[hidden], .vp[hidden] { display: none; }
+.vp { position: relative; border-radius: 20px; overflow: hidden; background: #000; border: 1px solid var(--line); outline: none; user-select: none; -webkit-user-select: none; }
+.vp video { display: block; width: 100%; max-height: min(62vh, 560px); background: #000; object-fit: contain; }
+.vp:fullscreen { border-radius: 0; border: 0; }
+.vp:fullscreen video { max-height: 100vh; height: 100vh; }
+.vp:-webkit-full-screen { border-radius: 0; border: 0; }
+.vp:-webkit-full-screen video { max-height: 100vh; height: 100vh; }
+.vp.idle { cursor: none; }
+.vp-big {
+  position: absolute; inset: 0; margin: auto; width: 72px; height: 72px; display: none; place-items: center;
+  border: 1px solid rgba(255, 255, 255, .25); border-radius: 50%; color: #fff; cursor: pointer;
+  background: rgba(10, 12, 16, .55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 0 40px -6px rgba(var(--accent-rgb), .7); transition: transform .3s var(--spring);
+}
+.vp-big:hover { transform: scale(1.08); }
+.vp.paused .vp-big { display: grid; }
+.vp.loading .vp-big { display: none; }
+.vp-big svg { width: 30px; height: 30px; margin-left: 4px; }
+.vp-spin { position: absolute; inset: 0; margin: auto; width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .18); border-top-color: rgb(var(--accent-rgb)); animation: vpspin .8s linear infinite; pointer-events: none; }
+.vp-spin[hidden] { display: none; }
+@keyframes vpspin { to { transform: rotate(360deg); } }
+.vp-err { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--soft); background: rgba(0, 0, 0, .8); }
+.vp-err[hidden] { display: none; }
+.vp-ctl {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 36px 12px 8px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, .82), rgba(0, 0, 0, 0));
+  transition: opacity .25s ease;
+}
+.vp.idle .vp-ctl { opacity: 0; pointer-events: none; }
+.vp-seek { position: relative; height: 18px; display: flex; align-items: center; cursor: pointer; touch-action: none; outline: none; }
+.vp-track { position: relative; width: 100%; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, .22); transition: height .15s; overflow: visible; }
+.vp-seek:hover .vp-track, .vp-seek.drag .vp-track, .vp-seek:focus-visible .vp-track { height: 8px; }
+.vp-buf, .vp-played { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 999px; }
+.vp-buf { background: rgba(255, 255, 255, .3); }
+.vp-played { background: rgb(var(--accent-rgb)); box-shadow: 0 0 12px rgba(var(--accent-rgb), .8); }
+.vp-thumb { position: absolute; top: 50%; left: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #fff; transform: scale(0); transition: transform .15s; }
+.vp-seek:hover .vp-thumb, .vp-seek.drag .vp-thumb, .vp-seek:focus-visible .vp-thumb { transform: scale(1); }
+.vp-tip { position: absolute; bottom: 22px; left: 0; transform: translateX(-50%); padding: 3px 8px; border-radius: 8px; background: rgba(0, 0, 0, .85); color: #fff; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; opacity: 0; transition: opacity .12s; }
+.vp-seek:hover .vp-tip, .vp-seek.drag .vp-tip { opacity: 1; }
+.vp-row { display: flex; align-items: center; gap: 4px; color: #fff; }
+.vp-row .sp { flex: 1; }
+.vp-b {
+  display: grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px; border: 0; border-radius: 10px;
+  background: transparent; color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.vp-b:hover { background: rgba(255, 255, 255, .14); }
+.vp-b[aria-pressed="true"] { color: rgb(var(--accent-rgb)); }
+.vp-b svg { width: 20px; height: 20px; }
+.vp-b[hidden] { display: none; }
+.vp-time { margin-inline: 6px; font-size: 12px; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, .88); white-space: nowrap; }
+.vp-vol { display: flex; align-items: center; }
+.vp-vol input { width: 0; opacity: 0; transition: width .2s, opacity .2s; accent-color: rgb(var(--accent-rgb)); height: 4px; margin: 0; cursor: pointer; }
+.vp-vol:hover input, .vp-vol:focus-within input { width: 76px; opacity: 1; margin-right: 6px; }
+@media (hover: none) { .vp-vol input { display: none; } }
+.drop { border: 1.5px dashed rgba(var(--accent-rgb), .45); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: rgba(var(--accent-rgb), .04); transition: background .2s, border-color .2s; }
+.drop[hidden] { display: none; }
+.drop.over { background: rgba(var(--accent-rgb), .14); border-color: rgb(var(--accent-rgb)); }
+.drop-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.drop-lbl { flex: 1 1 220px; color: var(--soft); font-size: 12px; line-height: 1.5; }
+.drop-lbl b { color: var(--fg); }
+.drop input[type="text"] { flex: 1 1 200px; font: inherit; font-size: 16px; color: var(--fg); padding: 8px 14px; border-radius: 999px; outline: none; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+@media (min-width: 601px) { .drop input[type="text"] { font-size: 12.5px; } }
+.drop-bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.drop-bar[hidden] { display: none; }
+.drop-bar i { display: block; height: 100%; width: 0; background: rgb(var(--accent-rgb)); box-shadow: 0 0 12px rgba(var(--accent-rgb), .7); transition: width .15s linear; }
+.drop-msg { min-height: 1.3em; font-size: 11.5px; color: var(--muted); }
+.drop-msg.err { color: var(--danger); }
+.drop-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.drop-btns .pill { background: rgba(255, 255, 255, .035); }
+.drop-btns .del { color: var(--danger); border-color: rgba(255, 122, 138, .4); }
 /* guestbook + announcement */
 .ann {
   position: fixed; top: 0; left: 0; right: 0; z-index: 15; height: 32px;
@@ -550,6 +639,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   <footer class="foot">
     <span class="pill sm" id="copy"></span>
     <button class="pill sm" id="gbBtn" type="button" aria-haspopup="dialog"><span class="dot" aria-hidden="true"></span>guestbook</button>
+    <button class="pill sm" id="clipBtn" type="button" aria-haspopup="dialog" hidden><span class="dot" aria-hidden="true"></span>clip of the day</button>
     <button class="pill sm" id="bgBtn" type="button" aria-label="Change background mode"><span class="dot" aria-hidden="true"></span>bg/<b id="bgName">aurora</b></button>
   </footer>
 </main>
@@ -582,6 +672,53 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     </div>
     <div class="gb-msg" id="gbMsg" role="status"></div>
   </form>
+</div>
+
+<div class="clip" id="clip" role="dialog" aria-label="Clip of the day" hidden>
+  <div class="clip-h">
+    <span class="pill sm"><span class="dot" aria-hidden="true"></span>clip of the day</span>
+    <span class="pill sm" id="clipDate" hidden></span>
+    <button class="x" id="clipX" type="button" aria-label="Close clip">✕</button>
+  </div>
+  <div class="clip-empty" id="clipEmpty">no clip yet. check back later.</div>
+  <div class="vp paused" id="vp" tabindex="0" hidden aria-label="Video player">
+    <video id="vid" playsinline preload="metadata"></video>
+    <div class="vp-spin" id="vpSpin" hidden></div>
+    <div class="vp-err" id="vpErr" hidden>this clip can't be played in your browser. try a different one.</div>
+    <button class="vp-big" id="vpBig" type="button" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+    <div class="vp-ctl" id="vpCtl">
+      <div class="vp-seek" id="vpSeek" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="vp-track"><div class="vp-buf" id="vpBuf"></div><div class="vp-played" id="vpPlayed"></div><div class="vp-thumb" id="vpThumb"></div><div class="vp-tip" id="vpTip">0:00</div></div>
+      </div>
+      <div class="vp-row">
+        <button class="vp-b" id="vpPlay" type="button" aria-label="Play"><svg id="vpPlayI" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></button>
+        <div class="vp-vol">
+          <button class="vp-b" id="vpMute" type="button" aria-label="Mute"><svg id="vpMuteI" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+          <input id="vpVol" type="range" min="0" max="1" step="0.02" value="1" aria-label="Volume">
+        </div>
+        <span class="vp-time" id="vpTime">0:00 / 0:00</span>
+        <span class="sp"></span>
+        <button class="vp-b" id="vpSpeed" type="button" aria-label="Playback speed">1x</button>
+        <button class="vp-b" id="vpLoop" type="button" aria-label="Loop" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>
+        <button class="vp-b" id="vpPip" type="button" aria-label="Picture in picture" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="6" height="5" rx="1" fill="currentColor"/></svg></button>
+        <button class="vp-b" id="vpFs" type="button" aria-label="Fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
+      </div>
+    </div>
+  </div>
+  <div class="clip-t" id="clipTitle" hidden></div>
+  <div class="drop" id="drop" hidden>
+    <div class="drop-top">
+      <div class="drop-lbl"><b>root: drop a clip anywhere on this page</b><br>mp4 (h264) or webm, up to 100 MB. a new clip replaces the old one.</div>
+      <input id="clTitleIn" type="text" maxlength="80" placeholder="title (optional)" aria-label="Clip title" autocomplete="off">
+    </div>
+    <div class="drop-bar" id="dropBar" hidden><i id="dropBarI"></i></div>
+    <div class="drop-msg" id="dropMsg" role="status"></div>
+    <div class="drop-btns">
+      <button class="pill sm" id="dropPick" type="button">choose file</button>
+      <button class="pill sm del" id="dropDel" type="button" hidden>delete clip</button>
+    </div>
+    <input id="dropFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" hidden>
+  </div>
 </div>
 
 <div class="game" id="game" role="dialog" aria-label="Snake" hidden>
@@ -1198,7 +1335,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   document.addEventListener('pointercancel', () => { mouse.on = false; });
   root.addEventListener('pointerleave', () => { mouse.on = false; });
   document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest && e.target.closest('#term, #game, #gb')) return;
+    if (e.target.closest && e.target.closest('#term, #game, #gb, #clip')) return;
     addPulse(e.clientX, e.clientY);
   });
   $('#bgBtn').addEventListener('click', () => setMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]));
@@ -1288,6 +1425,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   const ARGS = {
     theme: () => Object.keys(THEMES),
     themeall: () => Object.keys(THEMES).concat('off'),
+    clip: () => ['url', 'title', 'rm'],
     bg: () => MODES,
     cat: () => Object.keys(FILES),
     open: () => CFG.links.map((l) => l.id)
@@ -1330,6 +1468,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ['musiccolors', 'on | off: site follows my music'],
     ['bg [mode]', 'aurora | warp | flow'],
     ['guestbook', 'read & sign the wall'],
+    ['clip', 'watch the clip of the day'],
     ['login / logout', 'become root'],
     ['admin', 'root: manage the site'],
     ['sudo <cmd>', 'root only · sudo help'],
@@ -1428,6 +1567,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       add('admin commands', 'ok');
       [['gb list', 'show notes with ids'], ['gb rm <id>', 'delete one note'], ['gb clear yes', 'delete ALL notes'],
        ['gb lock / unlock', 'stop / allow new notes'], ['announce <text>', 'banner on top of the site'], ['announce off', 'remove the banner'],
+       ['clip', 'open player (drop a file to upload)'], ['clip title <text>', 'rename the clip'], ['clip rm yes', 'delete the clip'],
+       ['clip url <blob url>', 'use a clip already in Blob'],
        ['themeall <name>', 'set the theme for everyone'], ['themeall off', 'stop forcing a theme'],
        ['bio a | b | c', 'change the about text'], ['bio reset', 'restore default about text'], ['site', 'show current settings']]
         .forEach(([k, d]) => add('  ' + k.padEnd(18) + d, 'dim'));
@@ -1460,6 +1601,27 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       if (!raw) { add('usage: announce <text>  |  announce off', 'err'); return; }
       const r = await adm('cfg', { announce: raw.toLowerCase() === 'off' ? '' : raw });
       if (r) { applyCfg(r.cfg); add(r.cfg.announce ? 'banner set.' : 'banner removed.', 'ok'); }
+    },
+    async clip(a, raw) {
+      const sub = (a[0] || '').toLowerCase();
+      if (!sub) { openClip(); add('opening the clip of the day.', 'ok'); return; }
+      if (!needAdmin()) return;
+      if (sub === 'title') {
+        const t = raw.slice(5).trim();
+        if (!t) { add('usage: clip title <text>', 'err'); return; }
+        const r = await adm('clip-title', { title: t });
+        if (r) { setClip(r.clip); add('title updated.', 'ok'); }
+      } else if (sub === 'rm' || sub === 'del') {
+        if ((a[1] || '').toLowerCase() !== 'yes') { add('this deletes the clip. type: clip rm yes', 'err'); return; }
+        const r = await adm('clip-del', {});
+        if (r) { setClip(null); add('clip deleted.', 'ok'); }
+      } else if (sub === 'url') {
+        const [u, ...rest] = raw.slice(3).trim().split(/\s*\|\s*/);
+        const url = (u || '').trim();
+        if (!CLIP_RE.test(url)) { add('usage: clip url <https://....public.blob.vercel-storage.com/clips/file.mp4> | title', 'err'); return; }
+        const r = await adm('clip-set', { url, title: rest.join(' ') });
+        if (r) { vid.removeAttribute('data-src'); setClip(r.clip); add('clip is live.', 'ok'); }
+      } else add('unknown: clip ' + sub + "  (try 'admin')", 'err');
     },
     async themeall(a) {
       if (!needAdmin()) return;
@@ -1607,6 +1769,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   document.addEventListener('keydown', (e) => {
     if (game.open) { gameKey(e); return; }
     if (e.key === 'Escape' && !gbEl.hidden) { closeGb(); return; }
+    if (clipKey(e)) return;
     if (e.key === 'Escape' && !term.hidden) { closeTerm(); return; }
     if (e.key === '`' || e.code === 'Backquote') {
       const tg = e.target;
@@ -1742,6 +1905,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       gbList.appendChild(li);
     });
     gbCount.textContent = gbItems.length + (gbItems.length === 1 ? ' note' : ' notes');
+    clipSync();
   }
   function updateGbLock() {
     gbText.disabled = gbName.disabled = gbSend.disabled = gbLocked;
@@ -1808,6 +1972,278 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     }
   }
   if (!NP_DEMO) api('/api/site').then(applyCfg).catch(() => { /* site settings are optional */ });
+
+  /* ---------- clip of the day: custom video player + root drag & drop upload ---------- */
+  const clipEl = $('#clip'), vid = $('#vid'), vpEl = $('#vp'), clipBtn = $('#clipBtn');
+  const vpBig = $('#vpBig'), vpPlay = $('#vpPlay'), vpSeek = $('#vpSeek'), vpBuf = $('#vpBuf'), vpPlayed = $('#vpPlayed');
+  const vpThumb = $('#vpThumb'), vpTip = $('#vpTip'), vpTime = $('#vpTime'), vpVol = $('#vpVol'), vpMute = $('#vpMute');
+  const vpSpeed = $('#vpSpeed'), vpLoop = $('#vpLoop'), vpPip = $('#vpPip'), vpFs = $('#vpFs'), vpSpin = $('#vpSpin'), vpErr = $('#vpErr');
+  const dropEl = $('#drop'), dropMsg = $('#dropMsg'), dropBar = $('#dropBar'), dropBarI = $('#dropBarI');
+  const clTitleIn = $('#clTitleIn'), dropFile = $('#dropFile'), dropDel = $('#dropDel');
+  const CLIP_RE = /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\/clips\/[A-Za-z0-9._\-\/]+$/;
+  const CLIP_MAX = 100 * 1024 * 1024;
+  const SPEEDS = [1, 1.25, 1.5, 2, 0.5, 0.75];
+  let clip = null, clipOpener = null, vpIdleT = 0, vpClickT = 0, vpSeeking = false, clBusy = false;
+
+  const tfmt = (s) => {
+    s = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0');
+  };
+  const isFs = () => document.fullscreenElement === vpEl || document.webkitFullscreenElement === vpEl;
+
+  /* data */
+  function setClip(c) {
+    clip = c && typeof c.url === 'string' && CLIP_RE.test(c.url) ? c : null;
+    clipSync();
+  }
+  function clipSync() {
+    clipBtn.hidden = !clip && !adminTok;
+    dropEl.hidden = !adminTok;
+    dropDel.hidden = !adminTok || !clip;
+    if (clipEl.hidden) return;
+    const has = !!clip;
+    vpEl.hidden = !has; $('#clipEmpty').hidden = has;
+    const t = $('#clipTitle'), d = $('#clipDate');
+    t.hidden = !has || !clip.title; t.textContent = has ? clip.title : '';
+    d.hidden = !has || !clip.ts;
+    if (has && clip.ts) {
+      const dt = new Date(clip.ts), now = new Date();
+      d.textContent = dt.toDateString() === now.toDateString() ? 'today' : dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toLowerCase();
+    }
+    if (has) {
+      if (vid.getAttribute('data-src') !== clip.url) {
+        vid.setAttribute('data-src', clip.url);
+        vpErr.hidden = true;
+        vid.src = clip.url + '#t=0.1';   // paints the first frame as the poster
+      }
+    } else if (vid.getAttribute('src')) {
+      vid.pause(); vid.removeAttribute('src'); vid.removeAttribute('data-src'); vid.load();
+    }
+  }
+  async function loadClip() {
+    try { const r = await api('/api/clip'); setClip(r.clip); } catch (e) { /* no clip / offline */ }
+  }
+  function openClip() {
+    clipOpener = document.activeElement;
+    clipEl.hidden = false; clipSync(); loadClip();
+    requestAnimationFrame(() => { if (clip) vpEl.focus({ preventScroll: true }); });
+  }
+  function closeClip() {
+    if (isFs()) { try { (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) { /* ignore */ } }
+    vid.pause(); clipEl.hidden = true;
+    if (clipOpener && clipOpener.focus) clipOpener.focus({ preventScroll: true });
+  }
+  clipBtn.addEventListener('click', openClip);
+  $('#clipX').addEventListener('click', closeClip);
+
+  /* player */
+  function showCtl() {
+    vpEl.classList.remove('idle'); clearTimeout(vpIdleT);
+    if (!vid.paused && !vpSeeking) vpIdleT = setTimeout(() => vpEl.classList.add('idle'), 2600);
+  }
+  function togglePlay() { if (vid.paused || vid.ended) { const p = vid.play(); if (p && p.catch) p.catch(() => {}); } else vid.pause(); }
+  function seekBy(sec) { if (isFinite(vid.duration)) vid.currentTime = Math.min(vid.duration, Math.max(0, vid.currentTime + sec)); showCtl(); }
+  function seekTo(r) { if (isFinite(vid.duration)) vid.currentTime = Math.min(1, Math.max(0, r)) * vid.duration; }
+  function setVol(v) {
+    v = Math.min(1, Math.max(0, v)); vid.volume = v; vid.muted = v === 0;
+    store.set('vv', String(v));
+  }
+  function toggleFs() {
+    if (isFs()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    const f = vpEl.requestFullscreen || vpEl.webkitRequestFullscreen;
+    if (f) f.call(vpEl); else if (vid.webkitEnterFullscreen) vid.webkitEnterFullscreen();   // iPhone
+  }
+  function setSpeed(r) { vid.playbackRate = r; vpSpeed.textContent = (r === 1 ? '1' : String(r)) + 'x'; }
+  function paintTime() {
+    const d = vid.duration, c = vid.currentTime;
+    const r = isFinite(d) && d > 0 ? c / d : 0;
+    vpPlayed.style.width = (r * 100) + '%'; vpThumb.style.left = (r * 100) + '%';
+    vpTime.textContent = tfmt(c) + ' / ' + tfmt(isFinite(d) ? d : 0);
+    vpSeek.setAttribute('aria-valuenow', String(Math.round(r * 100)));
+    vpSeek.setAttribute('aria-valuetext', tfmt(c) + ' of ' + tfmt(isFinite(d) ? d : 0));
+  }
+  function paintBuf() {
+    const b = vid.buffered, d = vid.duration;
+    if (!b.length || !isFinite(d) || d <= 0) { vpBuf.style.width = '0%'; return; }
+    let end = 0;
+    for (let i = 0; i < b.length; i++) if (b.start(i) <= vid.currentTime + 0.5) end = Math.max(end, b.end(i));
+    vpBuf.style.width = Math.min(100, (end / d) * 100) + '%';
+  }
+  function paintPlay() {
+    const paused = vid.paused;
+    vpEl.classList.toggle('paused', paused);
+    vpPlay.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+    $('#vpPlayI').innerHTML = '';   // static icon markup only (no user data)
+    const NS2 = 'http://www.w3.org/2000/svg', ic = $('#vpPlayI');
+    const path = document.createElementNS(NS2, 'path');
+    path.setAttribute('d', paused ? 'M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z' : 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z');
+    ic.appendChild(path);
+    showCtl();
+  }
+  function paintVol() {
+    vpVol.value = vid.muted ? 0 : vid.volume;
+    vpMute.setAttribute('aria-label', vid.muted || vid.volume === 0 ? 'Unmute' : 'Mute');
+    vpMute.style.opacity = vid.muted || vid.volume === 0 ? '.55' : '1';
+  }
+  vid.addEventListener('loadedmetadata', () => { paintTime(); paintBuf(); vpErr.hidden = true; });
+  vid.addEventListener('timeupdate', paintTime);
+  vid.addEventListener('progress', paintBuf);
+  vid.addEventListener('play', paintPlay);
+  vid.addEventListener('pause', paintPlay);
+  vid.addEventListener('ended', paintPlay);
+  vid.addEventListener('volumechange', paintVol);
+  vid.addEventListener('waiting', () => { vpSpin.hidden = false; vpEl.classList.add('loading'); });
+  ['canplay', 'playing', 'seeked'].forEach((ev) => vid.addEventListener(ev, () => { vpSpin.hidden = true; vpEl.classList.remove('loading'); }));
+  vid.addEventListener('error', () => { if (vid.getAttribute('src')) { vpErr.hidden = false; vpSpin.hidden = true; } });
+  vid.addEventListener('enterpictureinpicture', () => { vpEl.classList.add('paused'); });
+  document.addEventListener('fullscreenchange', () => { vpFs.setAttribute('aria-pressed', String(isFs())); });
+
+  /* clicks: single = play/pause, double = fullscreen (center) or +-10s (sides) */
+  vid.addEventListener('click', () => {
+    clearTimeout(vpClickT);
+    vpClickT = setTimeout(togglePlay, 230);
+  });
+  vid.addEventListener('dblclick', (e) => {
+    clearTimeout(vpClickT);
+    const r = vid.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+    if (x < 0.33) seekBy(-10); else if (x > 0.67) seekBy(10); else toggleFs();
+  });
+  vpBig.addEventListener('click', togglePlay);
+  vpPlay.addEventListener('click', togglePlay);
+  vpMute.addEventListener('click', () => { vid.muted = !vid.muted; if (!vid.muted && vid.volume === 0) vid.volume = 0.5; store.set('vm', vid.muted ? '1' : '0'); });
+  vpVol.addEventListener('input', () => setVol(parseFloat(vpVol.value)));
+  vpSpeed.addEventListener('click', () => { setSpeed(SPEEDS[(SPEEDS.indexOf(vid.playbackRate) + 1) % SPEEDS.length]); });
+  vpLoop.addEventListener('click', () => { vid.loop = !vid.loop; vpLoop.setAttribute('aria-pressed', String(vid.loop)); });
+  vpFs.addEventListener('click', toggleFs);
+  if (document.pictureInPictureEnabled && vid.requestPictureInPicture) {
+    vpPip.hidden = false;
+    vpPip.addEventListener('click', () => {
+      if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+      else vid.requestPictureInPicture().catch(() => {});
+    });
+  }
+  vpEl.addEventListener('pointermove', showCtl);
+  vpEl.addEventListener('pointerdown', showCtl);
+  vpEl.addEventListener('pointerleave', () => { if (!vid.paused && !vpSeeking) { clearTimeout(vpIdleT); vpIdleT = setTimeout(() => vpEl.classList.add('idle'), 900); } });
+
+  /* seek bar: click, drag, hover time, arrow keys */
+  function ratioAt(e) { const r = vpSeek.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); }
+  function tipAt(e) {
+    const r = ratioAt(e), w = vpSeek.getBoundingClientRect().width;
+    vpTip.textContent = tfmt((isFinite(vid.duration) ? vid.duration : 0) * r);
+    vpTip.style.left = Math.min(w - 24, Math.max(24, r * w)) + 'px';
+  }
+  vpSeek.addEventListener('pointerdown', (e) => {
+    vpSeeking = true; vpSeek.classList.add('drag'); vpSeek.setPointerCapture(e.pointerId);
+    seekTo(ratioAt(e)); tipAt(e); e.stopPropagation();
+  });
+  vpSeek.addEventListener('pointermove', (e) => { tipAt(e); if (vpSeeking) seekTo(ratioAt(e)); });
+  const endSeek = (e) => { if (!vpSeeking) return; vpSeeking = false; vpSeek.classList.remove('drag'); try { vpSeek.releasePointerCapture(e.pointerId); } catch (er) { /* ignore */ } showCtl(); };
+  vpSeek.addEventListener('pointerup', endSeek);
+  vpSeek.addEventListener('pointercancel', endSeek);
+  vpSeek.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); seekBy(-5); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); seekBy(5); }
+  });
+
+  /* keyboard (only while the clip window is open) */
+  function clipKey(e) {
+    if (clipEl.hidden) return false;
+    if (e.key === 'Escape') { if (!isFs()) closeClip(); return true; }
+    const tg = e.target;
+    if (tg && tg.matches && tg.matches('input, textarea')) return false;
+    if (e.ctrlKey || e.metaKey || e.altKey || !clip) return false;
+    const k = e.key;
+    if (tg && tg.closest && tg.closest('button') && (k === ' ' || k === 'Enter')) return false;
+    let used = true;
+    if (k === ' ' || k === 'k' || k === 'K') togglePlay();
+    else if (k === 'ArrowLeft') seekBy(-5);
+    else if (k === 'ArrowRight') seekBy(5);
+    else if (k === 'j' || k === 'J') seekBy(-10);
+    else if (k === 'l' || k === 'L') seekBy(10);
+    else if (k === 'ArrowUp') setVol((vid.muted ? 0 : vid.volume) + 0.05);
+    else if (k === 'ArrowDown') setVol((vid.muted ? 0 : vid.volume) - 0.05);
+    else if (k === 'm' || k === 'M') vpMute.click();
+    else if (k === 'f' || k === 'F') toggleFs();
+    else if (k === 'p' || k === 'P') { if (!vpPip.hidden) vpPip.click(); else used = false; }
+    else if (k === '<' || k === ',') setSpeed(SPEEDS[(SPEEDS.indexOf(vid.playbackRate) + SPEEDS.length - 1) % SPEEDS.length]);
+    else if (k === '>' || k === '.') vpSpeed.click();
+    else if (/^[0-9]$/.test(k)) seekTo(+k / 10);
+    else used = false;
+    if (used) { e.preventDefault(); showCtl(); }
+    return used;
+  }
+
+  /* root: drag & drop upload (straight to Vercel Blob) */
+  function dmsg(t, err) { dropMsg.textContent = t || ''; dropMsg.classList.toggle('err', !!err); }
+  function dprog(r) { dropBar.hidden = r == null; dropBarI.style.width = Math.round((r || 0) * 100) + '%'; }
+  function putFile(url, file, type) {
+    return new Promise((resolve, reject) => {
+      const x = new XMLHttpRequest();
+      x.open('PUT', url);
+      x.setRequestHeader('Content-Type', type);
+      x.upload.onprogress = (e) => { if (e.lengthComputable) { dprog(e.loaded / e.total); dmsg('uploading ' + Math.round((e.loaded / e.total) * 100) + '%'); } };
+      x.onload = () => {
+        if (x.status >= 200 && x.status < 300) {
+          let j = {}; try { j = JSON.parse(x.responseText); } catch (e) { /* not json */ }
+          if (typeof j.url === 'string') resolve(j);
+          else reject(new Error('upload finished but no file address came back: ' + String(x.responseText).slice(0, 100)));
+        } else reject(new Error('upload failed (' + x.status + '): ' + String(x.responseText).slice(0, 120)));
+      };
+      x.onerror = () => reject(new Error('upload was blocked or lost the connection'));
+      x.send(file);
+    });
+  }
+  async function uploadClip(f) {
+    if (clBusy || !adminTok) return;
+    const name = String(f.name || '');
+    const type = (f.type || '').toLowerCase() || (/\.mp4$/i.test(name) ? 'video/mp4' : /\.webm$/i.test(name) ? 'video/webm' : /\.mov$/i.test(name) ? 'video/quicktime' : '');
+    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(type)) { dmsg('use an mp4 or webm file.', true); return; }
+    if (f.size > CLIP_MAX) { dmsg('that file is ' + Math.round(f.size / 1048576) + ' MB. keep it under 100 MB (HandBrake can shrink it).', true); return; }
+    clBusy = true; dropEl.classList.add('busy'); dprog(0); dmsg('preparing upload...');
+    try {
+      const title = (clTitleIn.value || name.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ')).trim().slice(0, 80);
+      const s = await api('/api/admin', { action: 'clip-sign', name, type, size: f.size }, true);
+      const res = await putFile(s.url, f, type);
+      dmsg('saving...');
+      const r = await api('/api/admin', { action: 'clip-set', url: res.url, title }, true);
+      vid.removeAttribute('data-src');
+      setClip(r.clip); clTitleIn.value = '';
+      dprog(1); dmsg('live. visitors can watch it now.');
+      setTimeout(() => dprog(null), 1500);
+    } catch (e) {
+      dprog(null);
+      if (e.status === 401) { adminTok = null; renderGb(); dmsg('session expired. login again in the terminal.', true); }
+      else dmsg(e.message || 'upload failed', true);
+    }
+    clBusy = false; dropEl.classList.remove('busy');
+  }
+  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0;
+  addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();                       // never let the browser open a dropped file
+    if (adminTok) { if (clipEl.hidden) openClip(); dropEl.classList.add('over'); }
+  });
+  addEventListener('dragleave', (e) => { if (!e.relatedTarget) dropEl.classList.remove('over'); });
+  addEventListener('drop', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); dropEl.classList.remove('over');
+    if (adminTok && e.dataTransfer.files[0]) uploadClip(e.dataTransfer.files[0]);
+  });
+  $('#dropPick').addEventListener('click', () => dropFile.click());
+  dropFile.addEventListener('change', () => { if (dropFile.files[0]) uploadClip(dropFile.files[0]); dropFile.value = ''; });
+  dropDel.addEventListener('click', async () => {
+    if (!adminTok || !clip) return;
+    if (!confirm('Delete the clip of the day?')) return;
+    try { await api('/api/admin', { action: 'clip-del' }, true); setClip(null); dmsg('clip deleted.'); }
+    catch (e) { dmsg(e.message, true); }
+  });
+  const vv = parseFloat(store.get('vv'));
+  if (isFinite(vv)) vid.volume = Math.min(1, Math.max(0, vv));
+  if (store.get('vm') === '1') vid.muted = true;
+  paintVol(); paintTime();
+  if (!NP_DEMO) loadClip();
 
   /* ---------- party mode: drop a party.mp3 next to index.html to use your own song; otherwise a built-in beat plays ---------- */
   const partyBtn = $('#partyBtn'), partyTxt = $('#partyTxt');
