@@ -59,9 +59,11 @@ body {
 #bg { position: fixed; inset: 0; z-index: 0; display: block; }
 .glow {
   position: fixed; inset: 0; z-index: 1; pointer-events: none;
-  background:
-    radial-gradient(560px circle at var(--mx, 50%) var(--my, 40%), rgba(var(--g-rgb), .05), transparent 65%),
-    radial-gradient(ellipse at 50% 42%, transparent 25%, rgba(0, 0, 0, .9) 100%);
+  background: radial-gradient(ellipse at 50% 42%, transparent 25%, rgba(0, 0, 0, .9) 100%);
+}
+#mg {
+  position: fixed; left: 0; top: 0; width: 1120px; height: 1120px; margin: -560px 0 0 -560px; z-index: 1; pointer-events: none;
+  background: radial-gradient(circle, rgba(var(--g-rgb), .05), transparent 65%); will-change: transform;
 }
 
 .stage {
@@ -601,6 +603,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
 <div id="boot" aria-hidden="true"><div id="bootTxt"></div></div>
 
 <div class="glow" aria-hidden="true"></div>
+<div id="mg" aria-hidden="true"></div>
 <canvas id="bg" aria-hidden="true"></canvas>
 <div id="rave" aria-hidden="true"></div>
 <div class="ann" id="ann" role="status" hidden><div class="ann-track" id="annTrack" aria-hidden="true"></div></div>
@@ -1110,19 +1113,27 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   }, 1000);
 
   /* ---------- cursor glow + card tilt ---------- */
+  let lastMove = 0;                       // when the pointer last moved (the background slows down when you stop)
+  const mg = $('#mg'); let mgx = innerWidth / 2, mgy = innerHeight * 0.4, mgq = false;
+  const mgPaint = () => { mgq = false; mg.style.transform = 'translate3d(' + mgx + 'px,' + mgy + 'px,0)'; };
+  mgPaint();
   document.addEventListener('pointermove', (e) => {
-    root.style.setProperty('--mx', e.clientX + 'px');
-    root.style.setProperty('--my', e.clientY + 'px');
-  });
-  const card = $('#card');
+    mgx = e.clientX; mgy = e.clientY; lastMove = performance.now();
+    if (!mgq) { mgq = true; requestAnimationFrame(mgPaint); }
+  }, { passive: true });
+  const card = $('#card'); let cq = null, cqBusy = false;
   card.addEventListener('pointermove', (e) => {
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-    card.style.setProperty('--gx', (px * 100) + '%');
-    card.style.setProperty('--gy', (py * 100) + '%');
-    if (RM || e.pointerType !== 'mouse') return;
-    card.style.transform = 'perspective(900px) rotateX(' + ((0.5 - py) * 8).toFixed(2) + 'deg) rotateY(' + ((px - 0.5) * 10).toFixed(2) + 'deg)';
-  });
+    cq = e; if (cqBusy) return; cqBusy = true;
+    requestAnimationFrame(() => {
+      cqBusy = false; const ev = cq; cq = null; if (!ev) return;
+      const r = card.getBoundingClientRect();
+      const px = (ev.clientX - r.left) / r.width, py = (ev.clientY - r.top) / r.height;
+      card.style.setProperty('--gx', (px * 100) + '%');
+      card.style.setProperty('--gy', (py * 100) + '%');
+      if (RM || ev.pointerType !== 'mouse') return;
+      card.style.transform = 'perspective(900px) rotateX(' + ((0.5 - py) * 8).toFixed(2) + 'deg) rotateY(' + ((px - 0.5) * 10).toFixed(2) + 'deg)';
+    });
+  }, { passive: true });
   card.addEventListener('pointerleave', () => { card.style.transform = ''; });
 
   /* ---------- background canvas: aurora / warp / flow ---------- */
@@ -1339,9 +1350,11 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   }
   const DRAW_MORE = { matrix: drawMatrix, net: drawNet, rain: drawRain, fireflies: drawFireflies, grid: drawGrid, snow: drawSnow, waves: drawWaves };
 
+  const SOFT = { aurora: 0.5, fireflies: 0.5, waves: 0.5, warp: 0.6 };   // blurry modes are drawn at half size and stretched: 4x fewer pixels, looks the same
+  const IDLE_GAP = { aurora: 90, fireflies: 66, waves: 66, net: 66, grid: 50 };
   function resize() {
     const nw = innerWidth, nh = innerHeight;
-    DPR = isLite ? 1 : Math.min(devicePixelRatio || 1, 1.5);
+    DPR = isLite ? (SOFT[mode] || 0.75) : Math.min(devicePixelRatio || 1, 1.5);
     const changed = nw !== W || Math.abs(nh - H) > 150;
     W = nw; H = nh;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
@@ -1436,6 +1449,8 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
     ctx.lineCap = 'round';
+    const NB = 4, paths = [];            // stars are batched into a few paths by depth: 8 draw calls instead of hundreds
+    for (let i = 0; i < NB * 2; i++) paths.push(new Path2D());
     for (const s of stars) {
       s.z -= speed;
       if (s.z <= 0.03) { Object.assign(s, newStar(false)); continue; }
@@ -1443,10 +1458,14 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
       const px = vp.x + (s.x / s.z) * f, py = vp.y + (s.y / s.z) * f;
       if (px < -60 || px > W + 60 || py < -60 || py > H + 60) { Object.assign(s, newStar(false)); continue; }
       const qx = vp.x + (s.x / pz) * f, qy = vp.y + (s.y / pz) * f;
-      const depth = 1 - s.z;
-      ctx.strokeStyle = 'rgba(' + (s.c ? rgb2 : rgb) + ',' + Math.min(1, depth * 1.1).toFixed(2) + ')';
+      const bk = Math.min(NB - 1, Math.floor((1 - s.z) * NB)), pa = paths[s.c * NB + bk];
+      pa.moveTo(qx, qy); pa.lineTo(px, py);
+    }
+    for (let c = 0; c < 2; c++) for (let k = 0; k < NB; k++) {
+      const depth = (k + 0.5) / NB;
+      ctx.strokeStyle = 'rgba(' + (c ? rgb2 : rgb) + ',' + Math.min(1, depth * 1.1).toFixed(2) + ')';
       ctx.lineWidth = 0.4 + depth * 2.2;
-      ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke();
+      ctx.stroke(paths[c * NB + k]);
     }
   }
 
@@ -1500,9 +1519,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
   if (document.hasFocus && !document.hasFocus()) { winBlur = true; }
   let last = performance.now(), lastDraw = 0;
   function frame(now) {
-    if (document.hidden) { requestAnimationFrame(frame); last = now; return; }
-    const gap = isLite ? 30 : 0;
-    if (gap && now - lastDraw < gap) { requestAnimationFrame(frame); return; }
+    if (document.hidden) { last = performance.now(); setTimeout(() => requestAnimationFrame(frame), 400); return; }
     lastDraw = now;
     const rawDt = (now - last) / 1000;
     if (!isLite && !autoLite && rawDt > 0.026 && rawDt < 0.5) { if (++slowRun > 45) { autoLite = true; syncLite(); } } else if (rawDt <= 0.026) { slowRun = Math.max(0, slowRun - 2); }
@@ -1517,12 +1534,17 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     else if (mode === 'warp') drawWarp(dt);
     else if (mode === 'flow') drawFlow(dt);
     else if (DRAW_MORE[mode]) DRAW_MORE[mode](dt);
-    requestAnimationFrame(frame);
+    if (isLite) {
+      const idle = performance.now() - lastMove > 4000 && !pulses.length;
+      const gap = idle ? (IDLE_GAP[mode] || 50) : 33;
+      setTimeout(() => requestAnimationFrame(frame), Math.max(0, gap - (performance.now() - now) - 4));
+    } else requestAnimationFrame(frame);
   }
 
   function setMode(m, fromCfg) {
     if (!MODES.includes(m)) return false;
     mode = m; store.set('mode', m);
+    if (isLite) resize();
     if (!fromCfg) store.set('modeAt', String(Date.now()));
     $('#bgName').textContent = m;
     initMode();
