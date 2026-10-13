@@ -573,7 +573,6 @@ html.duo .open { color: var(--ink); border-color: rgba(var(--accent-rgb), .8); b
 html.duo ::selection { color: #000; background: rgb(var(--accent-rgb)); }
 html.lite *, html.lite *::before, html.lite *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 html.lite #rave { display: none; }
-html.lite body.rave .title { animation: none; }
 html.lite .pill { background-color: rgba(18, 20, 26, .86); }
 /* party mode */
 .party { position: fixed; top: 14px; right: 14px; z-index: 15; }
@@ -586,7 +585,7 @@ html.lite .pill { background-color: rgba(18, 20, 26, .86); }
 }
 body.rave #rave { opacity: .22; animation: raveSpin 9s linear infinite; }
 body.rave.beat #rave { opacity: .38; transition-duration: .08s; }
-body.rave .title { animation: raveGlow 2.4s linear infinite; }
+body.rave .title { transition: text-shadow .4s ease, color .4s ease; }   /* colors are set from the beat in JS: no filter animation to repaint every frame */
 @keyframes raveSpin { to { transform: rotate(360deg); } }
 @keyframes raveGlow {
   0% { filter: drop-shadow(0 0 22px #ff2d95); } 20% { filter: drop-shadow(0 0 22px #ffe600); }
@@ -2624,6 +2623,10 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     root.style.setProperty('--accent-rgb', c);
     root.style.setProperty('--g-rgb', c);
     accRgb = c; rgb = c; rgb2 = RAVE[(raveI + 2) % RAVE.length].join(',');
+    // the big title glows in the beat's color (and tints toward it)
+    const c1 = RAVE[raveI], tint = c1.map((x) => Math.round(x + (255 - x) * 0.55)).join(',');
+    titleEl.style.color = 'rgb(' + tint + ')';
+    titleEl.style.textShadow = '0 0 16px rgba(' + c + ',.95), 0 0 46px rgba(' + c + ',.8), 0 0 110px rgba(' + rgb2 + ',.75)';
     addPulse(W * (0.15 + Math.random() * 0.7), H * (0.15 + Math.random() * 0.7));
     if (!RM) { document.body.classList.add('beat'); setTimeout(() => document.body.classList.remove('beat'), 130); }
   }
@@ -2679,7 +2682,7 @@ body.rave .title { animation: raveGlow 2.4s linear infinite; }
     party.beat = setInterval(raveBeat, 469); raveBeat();
   }
   function partyOff() {
-    party.on = false; raveActive = false;
+    party.on = false; raveActive = false; titleEl.style.color = ''; titleEl.style.textShadow = '';
     clearInterval(party.beat); clearInterval(party.sched);
     if (party.audio) { try { party.audio.pause(); } catch (e) { /* ignore */ } party.audio = null; }
     if (party.ctx) { try { party.ctx.close(); } catch (e) { /* ignore */ } party.ctx = null; }
